@@ -25,8 +25,6 @@ export default function RootLayout() {
       } finally {
         // Tell the application to render
         setAppIsReady(true);
-        // Hide the native splash screen immediately, our custom one is already visible
-        await SplashScreen.hideAsync();
       }
     }
 

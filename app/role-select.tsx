@@ -10,82 +10,84 @@ export default function RoleSelectScreen() {
   const router = useRouter();
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       <LinearGradient
         colors={['#3B82F6', '#8B5CF6']}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={styles.gradient}
       >
-        <View style={styles.content}>
-          <View style={styles.header}>
-            <View style={styles.logoContainer}>
-              <LinearGradient
-                colors={[colors.common.white, '#F0F9FF']}
-                style={styles.logoCircle}
-              >
-                <Image
-                  source={require('@/assets/images/logo.png')}
-                  style={{ width: 70, height: 70 }}
-                  resizeMode="contain"
-                />
-              </LinearGradient>
+        <SafeAreaView style={styles.safeArea}>
+          <View style={styles.content}>
+            <View style={styles.header}>
+              <View style={styles.logoContainer}>
+                <LinearGradient
+                  colors={[colors.common.white, '#F0F9FF']}
+                  style={styles.logoCircle}
+                >
+                  <Image
+                    source={require('@/assets/images/logo.png')}
+                    style={{ width: 70, height: 70 }}
+                    resizeMode="contain"
+                  />
+                </LinearGradient>
+              </View>
+              <Text style={styles.title}>EduPortal</Text>
+              <Text style={styles.subtitle}>Smart Education Management</Text>
             </View>
-            <Text style={styles.title}>EduPortal</Text>
-            <Text style={styles.subtitle}>Smart Education Management</Text>
-          </View>
 
-          <View style={styles.cardsContainer}>
-            <Pressable
-              onPress={() => router.push('/student-login')}
-              style={({ pressed }) => [styles.roleCard, pressed && styles.pressed]}
-            >
-              <LinearGradient
-                colors={['#FFFFFF', '#EFF6FF']}
-                style={styles.cardGradient}
+            <View style={styles.cardsContainer}>
+              <Pressable
+                onPress={() => router.push('/student-login')}
+                style={({ pressed }) => [styles.roleCard, pressed && styles.pressed]}
               >
-                <View style={[styles.iconCircle, { backgroundColor: '#DBEAFE' }]}>
-                  <MaterialIcons name="person" size={40} color={colors.student.primary} />
-                </View>
-                <Text style={[styles.roleTitle, { color: colors.student.primary }]}>
-                  Student Portal
-                </Text>
-                <Text style={styles.roleDesc}>Upload documents and mark attendance</Text>
-                <View style={styles.arrowContainer}>
-                  <MaterialIcons name="arrow-forward" size={24} color={colors.student.primary} />
-                </View>
-              </LinearGradient>
-            </Pressable>
+                <LinearGradient
+                  colors={['#FFFFFF', '#EFF6FF']}
+                  style={styles.cardGradient}
+                >
+                  <View style={[styles.iconCircle, { backgroundColor: '#DBEAFE' }]}>
+                    <MaterialIcons name="person" size={40} color={colors.student.primary} />
+                  </View>
+                  <Text style={[styles.roleTitle, { color: colors.student.primary }]}>
+                    Student Portal
+                  </Text>
+                  <Text style={styles.roleDesc}>Upload documents and mark attendance</Text>
+                  <View style={styles.arrowContainer}>
+                    <MaterialIcons name="arrow-forward" size={24} color={colors.student.primary} />
+                  </View>
+                </LinearGradient>
+              </Pressable>
 
-            <Pressable
-              onPress={() => router.push('/staff-login')}
-              style={({ pressed }) => [styles.roleCard, pressed && styles.pressed]}
-            >
-              <LinearGradient
-                colors={['#FFFFFF', '#F5F3FF']}
-                style={styles.cardGradient}
+              <Pressable
+                onPress={() => router.push('/staff-login')}
+                style={({ pressed }) => [styles.roleCard, pressed && styles.pressed]}
               >
-                <View style={[styles.iconCircle, { backgroundColor: '#EDE9FE' }]}>
-                  <MaterialIcons name="work" size={40} color={colors.staff.primary} />
-                </View>
-                <Text style={[styles.roleTitle, { color: colors.staff.primary }]}>
-                  Staff Portal
-                </Text>
-                <Text style={styles.roleDesc}>Manage students and track attendance</Text>
-                <View style={styles.arrowContainer}>
-                  <MaterialIcons name="arrow-forward" size={24} color={colors.staff.primary} />
-                </View>
-              </LinearGradient>
-            </Pressable>
-          </View>
+                <LinearGradient
+                  colors={['#FFFFFF', '#F5F3FF']}
+                  style={styles.cardGradient}
+                >
+                  <View style={[styles.iconCircle, { backgroundColor: '#EDE9FE' }]}>
+                    <MaterialIcons name="work" size={40} color={colors.staff.primary} />
+                  </View>
+                  <Text style={[styles.roleTitle, { color: colors.staff.primary }]}>
+                    Staff Portal
+                  </Text>
+                  <Text style={styles.roleDesc}>Manage students and track attendance</Text>
+                  <View style={styles.arrowContainer}>
+                    <MaterialIcons name="arrow-forward" size={24} color={colors.staff.primary} />
+                  </View>
+                </LinearGradient>
+              </Pressable>
+            </View>
 
-          <View style={styles.footer}>
-            <MaterialIcons name="verified-user" size={16} color="rgba(255,255,255,0.7)" />
-            <Text style={styles.footerText}>Secure • Fast • Reliable</Text>
+            <View style={styles.footer}>
+              <MaterialIcons name="verified-user" size={16} color="rgba(255,255,255,0.7)" />
+              <Text style={styles.footerText}>Secure • Fast • Reliable</Text>
+            </View>
           </View>
-        </View>
+        </SafeAreaView>
       </LinearGradient>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -94,6 +96,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   gradient: {
+    flex: 1,
+  },
+  safeArea: {
     flex: 1,
   },
   content: {

@@ -17,19 +17,24 @@ interface SplashScreenProps {
     onAnimationComplete: () => void;
 }
 
+import * as ExpoSplashScreen from 'expo-splash-screen';
+
 export function ProfessionalSplashScreen({ onAnimationComplete }: SplashScreenProps) {
-    const scale = useSharedValue(0.3);
+    const scale = useSharedValue(1.2); // Start slightly larger for a "pop up" effect
     const opacity = useSharedValue(0);
     const textOpacity = useSharedValue(0);
     const textTranslateY = useSharedValue(20);
 
     useEffect(() => {
+        // Immediately hide native splash to reveal ours
+        ExpoSplashScreen.hideAsync();
+
         // Logo entrance animation
         scale.value = withSequence(
-            withTiming(1.2, { duration: 800, easing: Easing.out(Easing.back(1.5)) }),
+            withTiming(1, { duration: 600, easing: Easing.out(Easing.back(1.5)) }),
             withTiming(1, { duration: 400 })
         );
-        opacity.value = withTiming(1, { duration: 800 });
+        opacity.value = withTiming(1, { duration: 600 });
 
         // Text entrance animation
         textOpacity.value = withDelay(600, withTiming(1, { duration: 600 }));
@@ -74,18 +79,10 @@ export function ProfessionalSplashScreen({ onAnimationComplete }: SplashScreenPr
 
                 <Animated.View style={[styles.textContainer, textStyle]}>
                     <View style={styles.divider} />
-                    <Animated.Text style={styles.title}>SIVA</Animated.Text>
-                    <Animated.Text style={styles.subtitle}>EduPortal • Attendance & Learning</Animated.Text>
+                    <Animated.Text style={styles.title}>EduPortal</Animated.Text>
+                    <Animated.Text style={styles.subtitle}>Smart Attendance & Learning</Animated.Text>
                 </Animated.View>
             </Animated.View>
-
-            <View style={styles.footer}>
-                <View style={styles.dotContainer}>
-                    <View style={[styles.dot, { backgroundColor: 'white' }]} />
-                    <View style={styles.dot} />
-                    <View style={styles.dot} />
-                </View>
-            </View>
         </View>
     );
 }
