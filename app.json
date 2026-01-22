@@ -1,0 +1,63 @@
+{
+  "expo": {
+    "name": "SIVA EduPortal",
+    "slug": "siva-eduportal",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/logo.png",
+    "scheme": "onspaceapp",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.ssabee-1722.onspace-app",
+      "infoPlist": {
+        "NSCalendarsUsageDescription": "Allow $(PRODUCT_NAME) to access your calendar",
+        "NSRemindersUsageDescription": "Allow $(PRODUCT_NAME) to access your reminders",
+        "NSCameraUsageDescription": "Allow $(PRODUCT_NAME) to access your camera",
+        "NSMicrophoneUsageDescription": "Allow $(PRODUCT_NAME) to access your microphone",
+        "NSLocationWhenInUseUsageDescription": "Allow $(PRODUCT_NAME) to access your location",
+        "NSContactsUsageDescription": "Allow $(PRODUCT_NAME) to access your contacts",
+        "NSPhotoLibraryUsageDescription": "Allow $(PRODUCT_NAME) to access your photos"
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/logo.png",
+        "backgroundColor": "#ffffff"
+      },
+      "edgeToEdgeEnabled": true,
+      "package": "com.ssabee1722.onspaceapp"
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "static",
+      "favicon": "./assets/images/logo.png"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/images/logo.png",
+          "imageWidth": 180,
+          "resizeMode": "contain",
+          "backgroundColor": "#1E3A8A"
+        }
+      ],
+      "expo-web-browser",
+      "expo-asset",
+      "expo-font",
+      [
+        "expo-calendar",
+        {
+          "calendarPermission": "Allow $(PRODUCT_NAME) to access your calendar",
+          "remindersPermission": "Allow $(PRODUCT_NAME) to access your reminders"
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
