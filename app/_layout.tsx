@@ -12,11 +12,15 @@ SplashScreen.preventAutoHideAsync().catch(() => {
   /* reloading the app might cause some errors */
 });
 
+// Global flag to ensure splash only shows once per session
+let hasShownSplashGlobal = false;
+
 export default function RootLayout() {
   const [appIsReady, setAppIsReady] = useState(false);
-  const [showAnimatedSplash, setShowAnimatedSplash] = useState(true);
+  const [showAnimatedSplash, setShowAnimatedSplash] = useState(!hasShownSplashGlobal);
 
   const onAnimationComplete = React.useCallback(() => {
+    hasShownSplashGlobal = true;
     setShowAnimatedSplash(false);
   }, []);
 
