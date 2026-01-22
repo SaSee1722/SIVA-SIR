@@ -484,6 +484,11 @@ export default function StaffDashboardScreen() {
               Staff Portal
             </Text>
             <Text style={[styles.name, { color: colors.staff.text }]}>{user?.name}</Text>
+            {(user as any)?.department && (
+              <Text style={[styles.department, { color: colors.staff.textSecondary }]}>
+                {(user as any).department} Department
+              </Text>
+            )}
           </View>
           <Pressable onPress={handleLogout} style={styles.logoutButton} hitSlop={8}>
             <MaterialIcons name="logout" size={24} color={colors.staff.text} />
@@ -597,6 +602,11 @@ const styles = StyleSheet.create({
   name: {
     ...typography.h1,
     marginTop: spacing.xs,
+  },
+  department: {
+    ...typography.bodySmall,
+    fontWeight: '600',
+    marginTop: 2,
   },
   logoutButton: {
     padding: spacing.xs,
