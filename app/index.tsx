@@ -27,8 +27,7 @@ export default function IndexScreen() {
 
   return (
     <View style={styles.container}>
-      <ActivityIndicator size="large" color={colors.student.primary} />
-      <Text style={styles.text}>Loading...</Text>
+      {/* No content here to keep it perfectly dark blue during routing */}
     </View>
   );
 }
@@ -36,13 +35,6 @@ export default function IndexScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: colors.common.gray50,
-  },
-  text: {
-    ...typography.body,
-    color: colors.common.gray600,
-    marginTop: spacing.md,
+    backgroundColor: '#1E3A8A', // Match splash screen background
   },
 });
