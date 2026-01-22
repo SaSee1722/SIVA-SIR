@@ -10,9 +10,7 @@ workflows:
       node: latest
       java: 17
       groups:
-        # You should create an environment group in Codemagic UI 
-        # and add your EXPO_PUBLIC_* variables there.
-        - project_env 
+        - VAR
       vars:
         # Static variables can go here
         PACKAGE_NAME: "com.ssabee1722.onspaceapp"
