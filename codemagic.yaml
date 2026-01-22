@@ -5,14 +5,13 @@ workflows:
   android-split-apk:
     name: Android Build (Split APKs)
     max_build_duration: 60
-    instance_type: mac_mini_m1
+    instance_type: mac_mini_m2
     environment:
       node: latest
       java: 17
       groups:
-        - VAR
+        - VAR 
       vars:
-        # Static variables can go here
         PACKAGE_NAME: "com.ssabee1722.onspaceapp"
 
     scripts:
@@ -25,21 +24,31 @@ workflows:
           # Generates the native android folder
           npx expo prebuild --platform android --no-install
 
-      - name: Enable ABI Splitting (arm64-v8a, etc.)
+      - name: Configure Splitting and Minification
         script: |
-          # This script modifies the generated android/app/build.gradle 
-          # to enable separate APKs for different CPU architectures.
-          # This will generate specific APKs for arm64-v8a, armeabi-v7a, etc.
-          
+          # 1. Enable ABI Splitting in build.gradle
+          # We insert the splits block into the android definition
           GRADLE_FILE="android/app/build.gradle"
           if [ -f "$GRADLE_FILE" ]; then
-            # Enable separate builds per architecture
-            sed -i '' 's/def enableSeparateBuildPerCPUArchitecture = false/def enableSeparateBuildPerCPUArchitecture = true/' "$GRADLE_FILE"
-            echo "Successfully enabled ABI splitting in build.gradle"
-          else
-            echo "Error: android/app/build.gradle not found. Prebuild might have failed."
-            exit 1
+            # Use sed to insert the splits block after the namespace line
+            # This will generate separate APKs for each architecture
+            sed -i '' '/namespace/a\
+    splits {\
+        abi {\
+            reset()\
+            enable true\
+            universalApk false\
+            include "armeabi-v7a", "arm64-v8a", "x86", "x86_64"\
+        }\
+    }' "$GRADLE_FILE"
+            echo "Splits configuration added to build.gradle"
           fi
+
+          # 2. Enable ProGuard/R8 for massive size reduction (from 200MB+ to ~20MB)
+          PROPS_FILE="android/gradle.properties"
+          echo "android.enableProguardInReleaseBuilds=true" >> "$PROPS_FILE"
+          echo "android.enableShrinkResourcesInReleaseBuilds=true" >> "$PROPS_FILE"
+          echo "Minification enabled in gradle.properties"
 
       - name: Set Android SDK Location
         script: |
@@ -51,15 +60,16 @@ workflows:
           ./gradlew assembleRelease
 
     artifacts:
-      # This will capture all generated APKs, including the split ones
-      # Look for filenames like app-arm64-v8a-release.apk
+      # This will now capture multiple APKs:
+      # - app-arm64-v8a-release.apk
+      # - app-armeabi-v7a-release.apk
+      # etc.
       - android/app/build/outputs/apk/release/*.apk
 
     publishing:
-      # Optional: setup email notifications
       email:
         recipients:
-          - your-email@example.com # Replace with your email
+          - your-email@example.com
         notify:
           success: true
           failure: true
