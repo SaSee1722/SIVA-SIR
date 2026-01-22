@@ -2,23 +2,28 @@ import { useState, useEffect, useCallback } from 'react';
 import { fileService } from '@/services/fileService';
 import { UploadedFile } from '@/types';
 
-export function useFiles(studentId?: string) {
+export function useFiles(studentId?: string, staffId?: string) {
   const [files, setFiles] = useState<UploadedFile[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   const loadFiles = useCallback(async () => {
     setIsLoading(true);
     try {
-      const loadedFiles = studentId
-        ? await fileService.getFilesByStudent(studentId)
-        : await fileService.getAllFiles();
+      let loadedFiles: UploadedFile[] = [];
+      if (studentId) {
+        loadedFiles = await fileService.getFilesByStudent(studentId);
+      } else if (staffId) {
+        loadedFiles = await fileService.getFilesByRecipient(staffId);
+      } else {
+        loadedFiles = await fileService.getAllFiles();
+      }
       setFiles(loadedFiles);
     } catch (error) {
       console.error('Load files error:', error);
     } finally {
       setIsLoading(false);
     }
-  }, [studentId]);
+  }, [studentId, staffId]);
 
   useEffect(() => {
     loadFiles();

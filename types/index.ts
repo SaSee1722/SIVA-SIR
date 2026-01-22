@@ -24,6 +24,8 @@ export interface UploadedFile {
   id: string;
   studentId: string;
   studentName: string;
+  recipientId?: string;
+  recipientName?: string;
   fileName: string;
   fileType: string;
   fileSize: number;

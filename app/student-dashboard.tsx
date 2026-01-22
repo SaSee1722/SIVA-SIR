@@ -10,10 +10,11 @@ import { Screen } from '@/components/layout/Screen';
 import { FileUploader } from '@/components/feature/FileUploader';
 import { FileList } from '@/components/feature/FileList';
 import { AttendanceStats } from '@/components/feature/AttendanceStats';
-import { StudentProfile } from '@/types';
+import { StudentProfile, User } from '@/types';
 import { colors, typography, borderRadius, spacing, shadows } from '@/constants/theme';
 import { useAlert } from '@/template';
 import * as FileSystem from 'expo-file-system';
+import { StaffSelector } from '@/components/feature/StaffSelector';
 
 export default function StudentDashboardScreen() {
   const { user, logout } = useAuth();
@@ -23,6 +24,7 @@ export default function StudentDashboardScreen() {
   const router = useRouter();
   const { showAlert } = useAlert();
   const [refreshing, setRefreshing] = useState(false);
+  const [selectedStaff, setSelectedStaff] = useState<User | null>(null);
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -46,15 +48,17 @@ export default function StudentDashboardScreen() {
       await uploadFile({
         studentId: user!.id,
         studentName: user!.name,
+        recipientId: selectedStaff?.id,
+        recipientName: selectedStaff?.name,
         fileName: file.fileName,
         fileType: file.fileType,
         fileSize: file.fileSize,
         base64Data: finalBase64,
       });
-      showAlert('Success', 'File uploaded successfully to Cloudinary');
+      console.log('[Dashboard] Upload success for:', file.fileName);
     } catch (error: any) {
       console.error('[Dashboard] Upload error:', error.message);
-      showAlert('Error', error.message || 'Failed to upload file');
+      showAlert('Error', `Failed to upload ${file.fileName}: ${error.message}`);
     }
   };
 
@@ -189,6 +193,10 @@ export default function StudentDashboardScreen() {
               Upload Documents
             </Text>
           </View>
+          <StaffSelector
+            onSelect={setSelectedStaff}
+            selectedStaffId={selectedStaff?.id || null}
+          />
           <FileUploader onUpload={handleUpload} role="student" />
         </View>
 

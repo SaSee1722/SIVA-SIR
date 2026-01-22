@@ -55,6 +55,8 @@ export const fileService = {
     const newFileRow = {
       student_id: file.studentId,
       student_name: file.studentName,
+      recipient_id: file.recipientId,
+      recipient_name: file.recipientName,
       file_name: file.fileName,
       file_type: file.fileType,
       file_size: file.fileSize,
@@ -74,6 +76,8 @@ export const fileService = {
       id: data.id,
       studentId: data.student_id,
       studentName: data.student_name,
+      recipientId: data.recipient_id,
+      recipientName: data.recipient_name,
       fileName: data.file_name,
       fileType: data.file_type,
       fileSize: data.file_size,
@@ -95,6 +99,8 @@ export const fileService = {
       id: f.id,
       studentId: f.student_id,
       studentName: f.student_name,
+      recipientId: f.recipient_id,
+      recipientName: f.recipient_name,
       fileName: f.file_name,
       fileType: f.file_type,
       fileSize: f.file_size,
@@ -117,6 +123,30 @@ export const fileService = {
       id: f.id,
       studentId: f.student_id,
       studentName: f.student_name,
+      fileName: f.file_name,
+      fileType: f.file_type,
+      fileSize: f.file_size,
+      uploadedAt: f.uploaded_at,
+      thumbnailUri: f.thumbnail_uri,
+    }));
+  },
+
+  async getFilesByRecipient(recipientId: string): Promise<UploadedFile[]> {
+    const supabase = getSharedSupabaseClient();
+    const { data, error } = await supabase
+      .from('files')
+      .select('*')
+      .eq('recipient_id', recipientId)
+      .order('uploaded_at', { ascending: false });
+
+    if (error) throw error;
+
+    return (data || []).map(f => ({
+      id: f.id,
+      studentId: f.student_id,
+      studentName: f.student_name,
+      recipientId: f.recipient_id,
+      recipientName: f.recipient_name,
       fileName: f.file_name,
       fileType: f.file_type,
       fileSize: f.file_size,

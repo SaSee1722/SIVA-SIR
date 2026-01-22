@@ -30,22 +30,22 @@ export function FileUploader({ onUpload, role = 'student' }: FileUploaderProps) 
       }
 
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images, // Only allow images
-        allowsEditing: false,
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsMultipleSelection: true, // Enable multiple images
         quality: 0.8,
         base64: true,
       });
 
-      if (!result.canceled && result.assets[0]) {
-        const asset = result.assets[0];
+      if (!result.canceled && result.assets) {
         setUploading(true);
-
-        onUpload({
-          fileName: asset.fileName || `photo_${Date.now()}.${asset.uri.split('.').pop()}`,
-          fileType: 'image/jpeg',
-          fileSize: asset.fileSize || 0,
-          base64Data: `data:image/jpeg;base64,${asset.base64}`,
-        });
+        for (const asset of result.assets) {
+          onUpload({
+            fileName: asset.fileName || `photo_${Date.now()}_${Math.random().toString(36).substr(2, 5)}.${asset.uri.split('.').pop()}`,
+            fileType: 'image/jpeg',
+            fileSize: asset.fileSize || 0,
+            base64Data: `data:image/jpeg;base64,${asset.base64}`,
+          });
+        }
         setUploading(false);
       }
     } catch (error) {
@@ -60,21 +60,19 @@ export function FileUploader({ onUpload, role = 'student' }: FileUploaderProps) 
       const result = await DocumentPicker.getDocumentAsync({
         type: '*/*',
         copyToCacheDirectory: true,
+        multiple: true, // Enable multiple documents
       });
 
-      if (!result.canceled && result.assets[0]) {
-        const file = result.assets[0];
+      if (!result.canceled && result.assets) {
         setUploading(true);
-
-        // For documents, we might need an extra step to read as base64 in React Native
-        // But for now, let's pass the URI and we might need a helper to convert it
-        // Or we use expo-file-system to read it
-        onUpload({
-          fileName: file.name,
-          fileType: file.mimeType || 'application/octet-stream',
-          fileSize: file.size || 0,
-          uri: file.uri, // Changed to include URI so calling component can read it
-        });
+        for (const file of result.assets) {
+          onUpload({
+            fileName: file.name,
+            fileType: file.mimeType || 'application/octet-stream',
+            fileSize: file.size || 0,
+            uri: file.uri,
+          });
+        }
         setUploading(false);
       }
     } catch (error) {

@@ -22,7 +22,7 @@ type AttendanceViewMode = 'all' | 'session' | 'date-range';
 
 export default function StaffDashboardScreen() {
   const { user, logout } = useAuth();
-  const { files, refresh: refreshFiles } = useFiles();
+  const { files, refresh: refreshFiles } = useFiles(undefined, user?.id);
   const {
     sessions,
     records,
