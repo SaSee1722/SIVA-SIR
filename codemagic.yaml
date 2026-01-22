@@ -63,5 +63,5 @@ workflows:
         recipients:
           - your-email@example.com # Replace with your email
         notify:
-          on_failure: true
-          on_success: true
+          success: true
+          failure: true
