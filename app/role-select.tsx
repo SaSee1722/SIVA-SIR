@@ -126,6 +126,7 @@ const styles = StyleSheet.create({
     ...typography.body,
     color: 'rgba(255,255,255,0.9)',
     fontWeight: '500',
+    textAlign: 'center',
   },
   cardsContainer: {
     gap: spacing.lg,
@@ -164,6 +165,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: spacing.xs,
     marginTop: spacing.xl,
+    paddingBottom: spacing.lg, // Give it some breathing room
   },
   footerText: {
     ...typography.bodySmall,

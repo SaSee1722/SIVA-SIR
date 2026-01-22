@@ -23,11 +23,13 @@ export default function RootLayout() {
   useEffect(() => {
     async function prepare() {
       try {
-        // Pre-load resources if needed
+        // Pre-load resources
       } catch (e) {
         console.warn(e);
       } finally {
         setAppIsReady(true);
+        // Hide the native static splash screen immediately to reveal our animated one
+        SplashScreen.hideAsync().catch(() => { });
       }
     }
 

@@ -112,6 +112,7 @@ const styles = StyleSheet.create({
         padding: 20,
         justifyContent: 'center',
         alignItems: 'center',
+        overflow: 'hidden', // Fixes visual "spikes" or artifacts
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 10 },
         shadowOpacity: 0.3,
