@@ -52,9 +52,6 @@ export default function RoleSelectScreen() {
                     Student Portal
                   </Text>
                   <Text style={styles.roleDesc}>Upload documents and mark attendance</Text>
-                  <View style={styles.arrowContainer}>
-                    <MaterialIcons name="arrow-forward" size={24} color={colors.student.primary} />
-                  </View>
                 </LinearGradient>
               </Pressable>
 
@@ -73,9 +70,6 @@ export default function RoleSelectScreen() {
                     Staff Portal
                   </Text>
                   <Text style={styles.roleDesc}>Manage students and track attendance</Text>
-                  <View style={styles.arrowContainer}>
-                    <MaterialIcons name="arrow-forward" size={24} color={colors.staff.primary} />
-                  </View>
                 </LinearGradient>
               </Pressable>
             </View>
@@ -143,7 +137,8 @@ const styles = StyleSheet.create({
   },
   cardGradient: {
     padding: spacing.xl,
-    alignItems: 'flex-start',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   iconCircle: {
     width: 72,
@@ -161,10 +156,7 @@ const styles = StyleSheet.create({
   roleDesc: {
     ...typography.body,
     color: colors.common.gray600,
-    marginBottom: spacing.md,
-  },
-  arrowContainer: {
-    alignSelf: 'flex-end',
+    textAlign: 'center',
   },
   footer: {
     flexDirection: 'row',
