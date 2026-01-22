@@ -33,14 +33,14 @@ workflows:
             # Use sed to insert the splits block after the namespace line
             # This will generate separate APKs for each architecture
             sed -i '' '/namespace/a\
-    splits {\
-        abi {\
-            reset()\
-            enable true\
-            universalApk false\
-            include "armeabi-v7a", "arm64-v8a", "x86", "x86_64"\
-        }\
-    }' "$GRADLE_FILE"
+          splits {\
+              abi {\
+                  reset()\
+                  enable true\
+                  universalApk false\
+                  include "armeabi-v7a", "arm64-v8a", "x86", "x86_64"\
+              }\
+          }' "$GRADLE_FILE"
             echo "Splits configuration added to build.gradle"
           fi
 
