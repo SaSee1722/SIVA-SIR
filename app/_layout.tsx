@@ -14,16 +14,17 @@ SplashScreen.preventAutoHideAsync().catch(() => {
 export default function RootLayout() {
   const [appIsReady, setAppIsReady] = useState(false);
   const [showAnimatedSplash, setShowAnimatedSplash] = useState(true);
+  const onAnimationComplete = React.useCallback(() => {
+    setShowAnimatedSplash(false);
+  }, []);
 
   useEffect(() => {
     async function prepare() {
       try {
-        // Pre-load fonts, make any API calls you need to do here
-        await new Promise(resolve => setTimeout(resolve, 500));
+        // Pre-load resources if needed
       } catch (e) {
         console.warn(e);
       } finally {
-        // Tell the application to render
         setAppIsReady(true);
       }
     }
@@ -40,7 +41,7 @@ export default function RootLayout() {
       <SafeAreaProvider>
         <AuthProvider>
           {showAnimatedSplash ? (
-            <ProfessionalSplashScreen onAnimationComplete={() => setShowAnimatedSplash(false)} />
+            <ProfessionalSplashScreen onAnimationComplete={onAnimationComplete} />
           ) : (
             <Stack screenOptions={{ headerShown: false }}>
               <Stack.Screen name="index" />

@@ -9,9 +9,9 @@ import Animated, {
     withDelay,
     runOnJS
 } from 'react-native-reanimated';
-import { colors, spacing } from '@/constants/theme';
+import { spacing } from '@/constants/theme';
 
-const { width } = Dimensions.get('window');
+
 
 interface SplashScreenProps {
     onAnimationComplete: () => void;
@@ -25,7 +25,12 @@ export function ProfessionalSplashScreen({ onAnimationComplete }: SplashScreenPr
     const textOpacity = useSharedValue(0);
     const textTranslateY = useSharedValue(20);
 
+    const animationStarted = React.useRef(false);
+
     useEffect(() => {
+        if (animationStarted.current) return;
+        animationStarted.current = true;
+
         // Immediately hide native splash to reveal ours
         ExpoSplashScreen.hideAsync();
 

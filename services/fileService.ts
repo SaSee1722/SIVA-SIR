@@ -1,6 +1,5 @@
 import { getSharedSupabaseClient } from '@/template/core/client';
 import { UploadedFile } from '@/types';
-import { decode } from 'base64-arraybuffer';
 
 export const fileService = {
   async uploadFile(file: Omit<UploadedFile, 'id' | 'uploadedAt'>): Promise<UploadedFile> {
