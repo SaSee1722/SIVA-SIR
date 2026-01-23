@@ -12,3 +12,9 @@
 -keep class com.facebook.react.turbomodule.** { *; }
 
 # Add any project specific keep options here:
+
+# Stripe SDK
+-keep class com.stripe.android.** { *; }
+-keep interface com.stripe.android.** { *; }
+-keepclassmembers class com.stripe.android.** { *; }
+-dontwarn com.stripe.android.**
