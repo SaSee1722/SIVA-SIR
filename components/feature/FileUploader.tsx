@@ -15,9 +15,10 @@ interface FileUploaderProps {
     uri?: string;
   }) => void;
   role?: 'student' | 'staff';
+  disabled?: boolean;
 }
 
-export function FileUploader({ onUpload, role = 'student' }: FileUploaderProps) {
+export function FileUploader({ onUpload, role = 'student', disabled = false }: FileUploaderProps) {
   const [uploading, setUploading] = useState(false);
   const theme = role === 'student' ? colors.student : colors.staff;
 
@@ -81,15 +82,18 @@ export function FileUploader({ onUpload, role = 'student' }: FileUploaderProps) 
     }
   };
 
+  const isDisabled = uploading || disabled;
+
   return (
     <View style={styles.container}>
       <Pressable
         onPress={handleImagePicker}
-        disabled={uploading}
+        disabled={isDisabled}
         style={({ pressed }) => [
           styles.uploadCard,
           { backgroundColor: colors.common.white },
-          pressed && styles.pressed,
+          isDisabled && styles.disabled,
+          pressed && !isDisabled && styles.pressed,
         ]}
       >
         <LinearGradient
@@ -108,11 +112,12 @@ export function FileUploader({ onUpload, role = 'student' }: FileUploaderProps) 
 
       <Pressable
         onPress={handleDocumentPicker}
-        disabled={uploading}
+        disabled={isDisabled}
         style={({ pressed }) => [
           styles.uploadCard,
           { backgroundColor: colors.common.white },
-          pressed && styles.pressed,
+          isDisabled && styles.disabled,
+          pressed && !isDisabled && styles.pressed,
         ]}
       >
         <LinearGradient
@@ -161,6 +166,9 @@ const styles = StyleSheet.create({
   cardDesc: {
     fontSize: 13,
     marginTop: 4,
+  },
+  disabled: {
+    opacity: 0.4,
   },
   pressed: {
     opacity: 0.85,

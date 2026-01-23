@@ -33,6 +33,11 @@ export default function StudentDashboardScreen() {
   };
 
   const handleUpload = async (file: { fileName: string; fileType: string; fileSize: number; base64Data?: string; uri?: string }) => {
+    if (!selectedStaff) {
+      showAlert('No Staff Selected', 'Please select a staff member before uploading files');
+      return;
+    }
+
     try {
       let finalBase64 = file.base64Data;
 
@@ -197,7 +202,15 @@ export default function StudentDashboardScreen() {
             onSelect={setSelectedStaff}
             selectedStaffId={selectedStaff?.id || null}
           />
-          <FileUploader onUpload={handleUpload} role="student" />
+          {!selectedStaff && (
+            <View style={styles.infoBox}>
+              <MaterialIcons name="info-outline" size={20} color={colors.student.primary} />
+              <Text style={[styles.infoText, { color: colors.student.textSecondary }]}>
+                Please select a staff member above to upload files
+              </Text>
+            </View>
+          )}
+          <FileUploader onUpload={handleUpload} role="student" disabled={!selectedStaff} />
         </View>
 
         {/* Files Section */}
@@ -344,6 +357,20 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
     color: colors.common.white,
+  },
+  infoBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.student.surfaceLight,
+    padding: spacing.md,
+    borderRadius: borderRadius.md,
+    gap: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  infoText: {
+    flex: 1,
+    fontSize: 14,
+    lineHeight: 20,
   },
   pressed: {
     opacity: 0.9,

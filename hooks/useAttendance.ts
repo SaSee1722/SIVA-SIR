@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { attendanceService } from '@/services/attendanceService';
 import { AttendanceSession, AttendanceRecord } from '@/types';
 
@@ -6,40 +6,43 @@ export function useAttendance() {
   const [sessions, setSessions] = useState<AttendanceSession[]>([]);
   const [records, setRecords] = useState<AttendanceRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-
-  const loadData = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      const [loadedSessions, loadedRecords] = await Promise.all([
-        attendanceService.getAllSessions(),
-        attendanceService.getAllRecords(),
-      ]);
-      setSessions(loadedSessions);
-      setRecords(loadedRecords);
-    } catch (error) {
-      console.error('Load attendance error:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
+  const [refreshCounter, setRefreshCounter] = useState(0);
 
   useEffect(() => {
-    loadData();
+    const loadData = async () => {
+      setIsLoading(true);
+      try {
+        const [loadedSessions, loadedRecords] = await Promise.all([
+          attendanceService.getAllSessions(),
+          attendanceService.getAllRecords(),
+        ]);
+        setSessions(loadedSessions);
+        setRecords(loadedRecords);
+      } catch (error) {
+        console.error('Load attendance error:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
 
+    loadData();
+  }, [refreshCounter]);
+
+  useEffect(() => {
     // Subscribe to real-time changes
     const sessionSubscription = attendanceService.subscribeToSessions(() => {
-      loadData();
+      setRefreshCounter(prev => prev + 1);
     });
 
     const recordSubscription = attendanceService.subscribeToRecords(() => {
-      loadData();
+      setRefreshCounter(prev => prev + 1);
     });
 
     return () => {
       sessionSubscription.unsubscribe();
       recordSubscription.unsubscribe();
     };
-  }, [loadData]);
+  }, []);
 
   const createSession = async (sessionName: string, createdBy: string) => {
     const newSession = await attendanceService.createSession(sessionName, createdBy);
@@ -83,6 +86,10 @@ export function useAttendance() {
     return data;
   };
 
+  const refresh = () => {
+    setRefreshCounter(prev => prev + 1);
+  };
+
   return {
     sessions,
     records,
@@ -92,6 +99,6 @@ export function useAttendance() {
     deactivateSession,
     getSessionRecords,
     getDateRangeRecords,
-    refresh: loadData,
+    refresh,
   };
 }
