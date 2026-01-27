@@ -173,7 +173,7 @@ export default function ClassManagementScreen() {
     const handleDeleteClass = async (classId: string, name: string) => {
         showAlert(
             'Delete Class',
-            `Are you sure you want to delete "${name}"? This will hide it from student signup.`,
+            `Are you sure you want to delete "${name}"? This will hide it from student signup and remove it from all enrolled students.`,
             [
                 { text: 'Cancel', style: 'cancel' },
                 {
@@ -181,7 +181,7 @@ export default function ClassManagementScreen() {
                     style: 'destructive',
                     onPress: async () => {
                         try {
-                            await classService.deleteClass(classId);
+                            await classService.deleteClass(classId, name);
                             await loadClasses();
                             showAlert('Success', 'Class deleted successfully');
                         } catch (error: any) {

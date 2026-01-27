@@ -615,10 +615,11 @@ export default function StaffDashboardScreen() {
   if (!user) return null;
 
   return (
-    <Screen role="staff" scrollable={false}>
-      <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
-
-      <View style={[styles.container, { flex: 1 }]}>
+    <Screen
+      role="staff"
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
+    >
+      <View style={styles.container}>
         <View style={styles.header}>
           <View>
             <Text style={[styles.greeting, { color: colors.staff.textSecondary }]}>

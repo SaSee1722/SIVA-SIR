@@ -39,6 +39,12 @@ export default function StaffSignupScreen() {
           'Account created! Please check your email and verify your identity before logging in.',
           [{ text: 'OK', onPress: () => router.replace('/staff-login') }]
         );
+      } else if (error.message?.includes('rate limit')) {
+        showAlert(
+          'Slow Down',
+          'Too many signup attempts. Please wait a while before trying again, or use a different email address.',
+          [{ text: 'OK' }]
+        );
       } else {
         showAlert('Signup Failed', error.message || 'Could not create account');
       }
@@ -126,7 +132,7 @@ export default function StaffSignupScreen() {
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
+    // flex: 1 removed to allow proper scrolling within Screen (ScrollView)
   },
   content: {
     padding: spacing.xl,

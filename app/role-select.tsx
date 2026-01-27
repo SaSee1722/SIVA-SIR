@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Pressable, Image, Modal, TextInput, KeyboardAvoidingView, Platform, Alert } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Image, Modal, TextInput, KeyboardAvoidingView, Platform, Alert, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -31,67 +31,75 @@ export default function RoleSelectScreen() {
         style={styles.gradient}
       >
         <SafeAreaView style={styles.safeArea}>
-          <View style={styles.content}>
-            <View style={styles.header}>
-              <View style={styles.logoContainer}>
-                <LinearGradient
-                  colors={[colors.common.white, '#F0F9FF']}
-                  style={styles.logoCircle}
-                >
-                  <Image
-                    source={require('@/assets/images/logo.png')}
-                    style={{ width: 70, height: 70 }}
-                    resizeMode="contain"
-                  />
-                </LinearGradient>
+          <ScrollView
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+          >
+            <View style={styles.content}>
+              <View style={styles.header}>
+                <View style={styles.logoContainer}>
+                  <LinearGradient
+                    colors={[colors.common.white, '#F0F9FF']}
+                    style={styles.logoCircle}
+                  >
+                    <Image
+                      source={require('@/assets/images/logo.png')}
+                      style={{ width: 68, height: 68 }}
+                      resizeMode="contain"
+                    />
+                  </LinearGradient>
+                </View>
+                <View style={styles.textGroup}>
+                  <Text style={styles.title}>EduPortal</Text>
+                  <View style={styles.divider} />
+                  <Text style={styles.subtitle}>SMART EDUCATION MANAGEMENT</Text>
+                </View>
               </View>
-              <Text style={styles.title}>EduPortal</Text>
-              <Text style={styles.subtitle}>Smart Education Management</Text>
-            </View>
 
-            <View style={styles.cardsContainer}>
-              <Pressable
-                onPress={() => router.push('/student-login')}
-                style={({ pressed }) => [styles.roleCard, pressed && styles.pressed]}
-              >
-                <LinearGradient
-                  colors={['#FFFFFF', '#EFF6FF']}
-                  style={styles.cardGradient}
+              <View style={styles.cardsContainer}>
+                <Pressable
+                  onPress={() => router.push('/student-login')}
+                  style={({ pressed }) => [styles.roleCard, pressed && styles.pressed]}
                 >
-                  <View style={[styles.iconCircle, { backgroundColor: '#DBEAFE' }]}>
-                    <MaterialIcons name="person" size={40} color={colors.student.primary} />
-                  </View>
-                  <Text style={[styles.roleTitle, { color: colors.student.primary }]}>
-                    Student Portal
-                  </Text>
-                  <Text style={styles.roleDesc}>Upload documents and mark attendance</Text>
-                </LinearGradient>
-              </Pressable>
+                  <LinearGradient
+                    colors={['#FFFFFF', '#EFF6FF']}
+                    style={styles.cardGradient}
+                  >
+                    <View style={[styles.iconCircle, { backgroundColor: '#DBEAFE' }]}>
+                      <MaterialIcons name="person" size={40} color={colors.student.primary} />
+                    </View>
+                    <Text style={[styles.roleTitle, { color: colors.student.primary }]}>
+                      Student Portal
+                    </Text>
+                    <Text style={styles.roleDesc}>Upload documents and mark attendance</Text>
+                  </LinearGradient>
+                </Pressable>
 
-              <Pressable
-                onPress={() => setShowStaffKeyModal(true)}
-                style={({ pressed }) => [styles.roleCard, pressed && styles.pressed]}
-              >
-                <LinearGradient
-                  colors={['#FFFFFF', '#F5F3FF']}
-                  style={styles.cardGradient}
+                <Pressable
+                  onPress={() => setShowStaffKeyModal(true)}
+                  style={({ pressed }) => [styles.roleCard, pressed && styles.pressed]}
                 >
-                  <View style={[styles.iconCircle, { backgroundColor: '#EDE9FE' }]}>
-                    <MaterialIcons name="work" size={40} color={colors.staff.primary} />
-                  </View>
-                  <Text style={[styles.roleTitle, { color: colors.staff.primary }]}>
-                    Staff Portal
-                  </Text>
-                  <Text style={styles.roleDesc}>Manage students and track attendance</Text>
-                </LinearGradient>
-              </Pressable>
-            </View>
+                  <LinearGradient
+                    colors={['#FFFFFF', '#F5F3FF']}
+                    style={styles.cardGradient}
+                  >
+                    <View style={[styles.iconCircle, { backgroundColor: '#EDE9FE' }]}>
+                      <MaterialIcons name="work" size={40} color={colors.staff.primary} />
+                    </View>
+                    <Text style={[styles.roleTitle, { color: colors.staff.primary }]}>
+                      Staff Portal
+                    </Text>
+                    <Text style={styles.roleDesc}>Manage students and track attendance</Text>
+                  </LinearGradient>
+                </Pressable>
+              </View>
 
-            <View style={styles.footer}>
-              <MaterialIcons name="verified-user" size={16} color="rgba(255,255,255,0.7)" />
-              <Text style={styles.footerText}>Secure • Fast • Reliable</Text>
+              <View style={styles.footer}>
+                <MaterialIcons name="verified-user" size={16} color="rgba(255,255,255,0.7)" />
+                <Text style={styles.footerText}>Secure • Fast • Reliable</Text>
+              </View>
             </View>
-          </View>
+          </ScrollView>
         </SafeAreaView>
       </LinearGradient>
 
@@ -160,9 +168,13 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   content: {
-    flex: 1,
-    padding: spacing.xl,
+    paddingHorizontal: spacing.xl,
+    paddingTop: spacing.xxl,
+    paddingBottom: spacing.xl,
     justifyContent: 'space-between',
+  },
+  scrollContent: {
+    flexGrow: 1,
   },
   header: {
     alignItems: 'center',
@@ -179,21 +191,35 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     ...shadows.xl,
   },
+  textGroup: {
+    alignItems: 'center',
+  },
   title: {
-    fontSize: 42,
-    fontWeight: '800',
+    fontSize: 40,
+    fontWeight: '900',
     color: colors.common.white,
-    marginBottom: spacing.xs,
-    letterSpacing: -1,
+    letterSpacing: -0.5,
+    textShadowColor: 'rgba(0, 0, 0, 0.1)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
+  },
+  divider: {
+    width: 40,
+    height: 3,
+    backgroundColor: 'rgba(255,255,255,0.3)',
+    borderRadius: 2,
+    marginVertical: spacing.sm,
   },
   subtitle: {
-    ...typography.body,
+    fontSize: 12,
     color: 'rgba(255,255,255,0.9)',
-    fontWeight: '500',
+    fontWeight: '700',
     textAlign: 'center',
+    letterSpacing: 2.5,
   },
   cardsContainer: {
     gap: spacing.lg,
+    marginTop: spacing.xl,
   },
   roleCard: {
     borderRadius: borderRadius.xl,

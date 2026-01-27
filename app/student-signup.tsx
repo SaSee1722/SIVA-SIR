@@ -15,7 +15,7 @@ export default function StudentSignupScreen() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [studentClass, setStudentClass] = useState('');
+  const [selectedClasses, setSelectedClasses] = useState<string[]>([]);
   const [year, setYear] = useState('');
   const [rollNumber, setRollNumber] = useState('');
   const [loading, setLoading] = useState(false);
@@ -35,7 +35,6 @@ export default function StudentSignupScreen() {
       const availableClasses = await classService.getAllClasses();
       setClasses(availableClasses);
 
-      // Extract unique years from existing classes, merging with defaults
       const years = new Set<string>(DEFAULT_YEARS);
       availableClasses.forEach(c => {
         if (c.year) years.add(c.year);
@@ -48,37 +47,35 @@ export default function StudentSignupScreen() {
 
   useEffect(() => {
     loadClasses();
-    setAvailableYears(DEFAULT_YEARS);
-  }, [loadClasses, DEFAULT_YEARS]);
+  }, [loadClasses]);
 
   useEffect(() => {
     if (year) {
-      // Filter classes that match the selected year field
       const filtered = classes.filter(c => c.year === year);
       setFilteredClasses(filtered);
-      // Reset class if it's no longer in the filtered list
-      if (studentClass && !filtered.some(c => c.className === studentClass)) {
-        setStudentClass('');
-      }
+      setSelectedClasses(prev => prev.filter(c => filtered.some(f => f.className === c)));
     } else {
       setFilteredClasses([]);
-      setStudentClass('');
+      setSelectedClasses([]);
     }
-  }, [year, classes, studentClass]);
+  }, [year, classes]);
 
   const handleYearSelect = (selectedYear: string) => {
     setYear(selectedYear);
     setShowYearPicker(false);
   };
 
-  const handleClassSelect = (className: string) => {
-    setStudentClass(className);
-    setShowClassPicker(false);
+  const handleClassToggle = (className: string) => {
+    setSelectedClasses(prev =>
+      prev.includes(className)
+        ? prev.filter(c => c !== className)
+        : [...prev, className]
+    );
   };
 
   const handleSignup = async () => {
-    if (!name || !email || !password || !studentClass || !year || !rollNumber) {
-      showAlert('Error', 'Please fill in all fields');
+    if (!name || !email || !password || selectedClasses.length === 0 || !year || !rollNumber) {
+      showAlert('Error', 'Please fill in all fields (Select at least one class)');
       return;
     }
 
@@ -86,7 +83,7 @@ export default function StudentSignupScreen() {
     try {
       await signup(email, password, 'student', {
         name,
-        class: studentClass,
+        class: selectedClasses.join(', '),
         year,
         rollNumber,
       });
@@ -97,6 +94,12 @@ export default function StudentSignupScreen() {
           'Verification Required',
           'Account created! Please check your email and verify your account before logging in.',
           [{ text: 'OK', onPress: () => router.replace('/student-login') }]
+        );
+      } else if (error.message?.includes('rate limit')) {
+        showAlert(
+          'Slow Down',
+          'Too many signup attempts. Please wait a while before trying again, or use a different email address.',
+          [{ text: 'OK' }]
         );
       } else {
         showAlert('Signup Failed', error.message || 'Could not create account');
@@ -204,9 +207,11 @@ export default function StudentSignupScreen() {
               >
                 <Text style={[
                   styles.pickerText,
-                  { color: studentClass ? colors.student.text : colors.student.textSecondary }
+                  { color: selectedClasses.length > 0 ? colors.student.text : colors.student.textSecondary }
                 ]}>
-                  {studentClass || (year ? 'Select your section' : 'Select year first')}
+                  {selectedClasses.length > 0
+                    ? selectedClasses.join(', ')
+                    : (year ? 'Select your section(s)' : 'Select year first')}
                 </Text>
                 <MaterialIcons name="arrow-drop-down" size={24} color={colors.student.textSecondary} />
               </Pressable>
@@ -303,7 +308,7 @@ export default function StudentSignupScreen() {
             <View style={[styles.modalContent, { backgroundColor: colors.student.background }]}>
               <View style={styles.modalHeader}>
                 <Text style={[styles.modalTitle, { color: colors.student.text }]}>
-                  Select Your Section ({year})
+                  Select Section(s) ({year})
                 </Text>
                 <Pressable onPress={() => setShowClassPicker(false)} hitSlop={8}>
                   <MaterialIcons name="close" size={24} color={colors.student.text} />
@@ -313,30 +318,44 @@ export default function StudentSignupScreen() {
               <FlatList
                 data={filteredClasses}
                 keyExtractor={(item) => item.id}
-                renderItem={({ item }) => (
-                  <Pressable
-                    onPress={() => handleClassSelect(item.className)}
-                    style={[
-                      styles.classItem,
-                      {
-                        backgroundColor: studentClass === item.className ? colors.student.surfaceLight : colors.student.surface,
-                        borderColor: studentClass === item.className ? colors.student.primary : colors.student.border,
-                      }
-                    ]}
-                  >
-                    <View style={styles.classInfo}>
-                      <Text style={[styles.className, { color: colors.student.text }]}>{item.className}</Text>
-                      {item.description && (
-                        <Text style={[styles.classDescription, { color: colors.student.textSecondary }]}>
-                          {item.description}
-                        </Text>
+                renderItem={({ item }) => {
+                  const isSelected = selectedClasses.includes(item.className);
+                  return (
+                    <Pressable
+                      onPress={() => handleClassToggle(item.className)}
+                      style={[
+                        styles.classItem,
+                        {
+                          backgroundColor: isSelected ? colors.student.surfaceLight : colors.student.surface,
+                          borderColor: isSelected ? colors.student.primary : colors.student.border,
+                        }
+                      ]}
+                    >
+                      <View style={styles.classInfo}>
+                        <Text style={[styles.className, { color: colors.student.text }]}>{item.className}</Text>
+                        {item.description && (
+                          <Text style={[styles.classDescription, { color: colors.student.textSecondary }]}>
+                            {item.description}
+                          </Text>
+                        )}
+                      </View>
+                      {isSelected && (
+                        <MaterialIcons name="check-circle" size={24} color={colors.student.primary} />
                       )}
-                    </View>
-                  </Pressable>
-                )}
+                    </Pressable>
+                  );
+                }}
                 ItemSeparatorComponent={() => <View style={{ height: spacing.xs }} />}
                 contentContainerStyle={{ padding: spacing.md }}
               />
+              <View style={styles.modalFooter}>
+                <Button
+                  title={selectedClasses.length > 0 ? `Selected ${selectedClasses.length} Classes` : "Select Classes"}
+                  onPress={() => setShowClassPicker(false)}
+                  role="student"
+                  disabled={selectedClasses.length === 0}
+                />
+              </View>
             </View>
           </View>
         </Modal>
@@ -347,7 +366,7 @@ export default function StudentSignupScreen() {
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
+    // flex: 1 removed to allow proper scrolling within Screen (ScrollView)
   },
   content: {
     padding: spacing.xl,
@@ -449,5 +468,10 @@ const styles = StyleSheet.create({
   classDescription: {
     ...typography.caption,
     marginTop: 2,
+  },
+  modalFooter: {
+    padding: spacing.lg,
+    borderTopWidth: 1,
+    borderTopColor: colors.common.gray200,
   },
 });

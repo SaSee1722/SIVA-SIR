@@ -35,7 +35,7 @@ export default function StaffLoginScreen() {
   };
 
   return (
-    <Screen role="staff" scrollable={false}>
+    <Screen role="staff">
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.container}

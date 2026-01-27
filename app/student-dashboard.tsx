@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, Pressable, RefreshControl } from 'react-native';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { View, Text, StyleSheet, Pressable, RefreshControl, Modal, FlatList, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -10,26 +10,95 @@ import { Screen } from '@/components/layout/Screen';
 import { FileUploader } from '@/components/feature/FileUploader';
 import { FileList } from '@/components/feature/FileList';
 import { AttendanceStats } from '@/components/feature/AttendanceStats';
-import { StudentProfile, User } from '@/types';
+import { StudentProfile, User, Class } from '@/types';
 import { colors, typography, borderRadius, spacing, shadows } from '@/constants/theme';
 import { useAlert } from '@/template';
 import * as FileSystem from 'expo-file-system';
 import { StaffSelector } from '@/components/feature/StaffSelector';
+import { classService } from '@/services/classService';
+import { Button } from '@/components/ui/Button';
 
 export default function StudentDashboardScreen() {
-  const { user, logout } = useAuth();
+  const { user, logout, updateProfile } = useAuth();
   const studentProfile = user as StudentProfile;
   const { files, uploadFile, deleteFile, refresh: refreshFiles } = useFiles(user?.id);
   const { records, sessions, refresh: refreshAttendance } = useAttendance();
   const router = useRouter();
   const { showAlert } = useAlert();
+
   const [refreshing, setRefreshing] = useState(false);
   const [selectedStaff, setSelectedStaff] = useState<User | null>(null);
+
+  // Edit Profile States
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editYear, setEditYear] = useState('');
+  const [editClasses, setEditClasses] = useState<string[]>([]);
+  const [availableClasses, setAvailableClasses] = useState<Class[]>([]);
+  const [filteredClasses, setFilteredClasses] = useState<Class[]>([]);
+  const [showYearPicker, setShowYearPicker] = useState(false);
+  const [updating, setUpdating] = useState(false);
+
+  const DEFAULT_YEARS = useMemo(() => ['I YEAR', 'II YEAR', 'III YEAR', 'IV YEAR'], []);
 
   const handleRefresh = async () => {
     setRefreshing(true);
     await Promise.all([refreshFiles(), refreshAttendance()]);
     setRefreshing(false);
+  };
+
+  const loadAllClasses = useCallback(async () => {
+    try {
+      const classes = await classService.getAllClasses();
+      setAvailableClasses(classes);
+    } catch (error) {
+      console.error('Error loading classes:', error);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (showEditModal) {
+      loadAllClasses();
+      setEditYear(studentProfile.year || '');
+      setEditClasses(studentProfile.class ? studentProfile.class.split(',').map(s => s.trim()) : []);
+    }
+  }, [showEditModal, studentProfile, loadAllClasses]);
+
+  useEffect(() => {
+    if (editYear) {
+      const filtered = availableClasses.filter(c => c.year === editYear);
+      setFilteredClasses(filtered);
+    } else {
+      setFilteredClasses([]);
+    }
+  }, [editYear, availableClasses]);
+
+  const handleClassToggle = (className: string) => {
+    setEditClasses(prev =>
+      prev.includes(className)
+        ? prev.filter(c => c !== className)
+        : [...prev, className]
+    );
+  };
+
+  const handleSaveProfile = async () => {
+    if (!editYear || editClasses.length === 0) {
+      showAlert('Error', 'Please select a year and at least one class');
+      return;
+    }
+
+    setUpdating(true);
+    try {
+      await updateProfile({
+        year: editYear,
+        class: editClasses.join(', '),
+      });
+      setShowEditModal(false);
+      showAlert('Success', 'Profile updated successfully! Now you can mark attendance for your new classes.');
+    } catch (error: any) {
+      showAlert('Error', error.message || 'Failed to update profile');
+    } finally {
+      setUpdating(false);
+    }
   };
 
   const handleUpload = async (file: { fileName: string; fileType: string; fileSize: number; base64Data?: string; uri?: string }) => {
@@ -40,10 +109,7 @@ export default function StudentDashboardScreen() {
 
     try {
       let finalBase64 = file.base64Data;
-
-      // If we have a URI but no base64Data (common for documents picked via DocumentPicker)
       if (file.uri && !finalBase64) {
-        console.log('[Dashboard] Reading file from URI:', file.uri);
         const base64 = await FileSystem.readAsStringAsync(file.uri, {
           encoding: FileSystem.EncodingType.Base64,
         });
@@ -60,9 +126,7 @@ export default function StudentDashboardScreen() {
         fileSize: file.fileSize,
         base64Data: finalBase64,
       });
-      console.log('[Dashboard] Upload success for:', file.fileName);
     } catch (error: any) {
-      console.error('[Dashboard] Upload error:', error.message);
       showAlert('Error', `Failed to upload ${file.fileName}: ${error.message}`);
     }
   };
@@ -107,10 +171,11 @@ export default function StudentDashboardScreen() {
   if (!user || !studentProfile) return null;
 
   return (
-    <Screen role="student" scrollable={false}>
-      <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
-
-      <View style={[styles.container, { flex: 1 }]}>
+    <Screen
+      role="student"
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
+    >
+      <View style={styles.container}>
         {/* Header Card */}
         <LinearGradient
           colors={colors.student.gradient}
@@ -126,11 +191,22 @@ export default function StudentDashboardScreen() {
                 </Text>
               </View>
               <View style={styles.headerInfo}>
-                <Text style={styles.greeting}>Welcome back,</Text>
-                <Text style={styles.name}>{studentProfile.name}</Text>
+                <View style={styles.nameRow}>
+                  <Text style={styles.name}>{studentProfile.name}</Text>
+                  <Pressable
+                    onPress={() => setShowEditModal(true)}
+                    style={styles.editProfileButton}
+                  >
+                    <MaterialIcons name="edit" size={16} color={colors.common.white} />
+                  </Pressable>
+                </View>
+                <Text style={styles.greeting}>Welcome back, student</Text>
                 <View style={styles.badgeContainer}>
                   <View style={styles.badge}>
-                    <Text style={styles.badgeText}>{studentProfile.class}</Text>
+                    <Text style={styles.badgeText}>{studentProfile.class || 'No Class'}</Text>
+                  </View>
+                  <View style={styles.badge}>
+                    <Text style={styles.badgeText}>{studentProfile.year || 'No Year'}</Text>
                   </View>
                   <View style={styles.badge}>
                     <Text style={styles.badgeText}>Roll: {studentProfile.rollNumber}</Text>
@@ -227,6 +303,132 @@ export default function StudentDashboardScreen() {
           <FileList files={files} role="student" onDelete={handleDelete} />
         </View>
       </View>
+
+      {/* Edit Profile Modal */}
+      <Modal
+        visible={showEditModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowEditModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: colors.common.white }]}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: colors.student.text }]}>
+                Update Year & Classes
+              </Text>
+              <Pressable onPress={() => {
+                setShowEditModal(false);
+                setShowYearPicker(false);
+              }} hitSlop={8}>
+                <MaterialIcons name="close" size={24} color={colors.student.text} />
+              </Pressable>
+            </View>
+
+            <View style={styles.modalBody}>
+              {showYearPicker ? (
+                <>
+                  <Text style={styles.label}>Select Your Year</Text>
+                  {DEFAULT_YEARS.map(y => (
+                    <Pressable
+                      key={y}
+                      onPress={() => {
+                        setEditYear(y);
+                        setShowYearPicker(false);
+                      }}
+                      style={[
+                        styles.yearItem,
+                        {
+                          backgroundColor: editYear === y ? colors.student.surfaceLight : colors.common.white,
+                          borderColor: editYear === y ? colors.student.primary : colors.common.gray200,
+                        }
+                      ]}
+                    >
+                      <Text style={[styles.yearText, { color: editYear === y ? colors.student.primary : colors.student.text }]}>
+                        {y}
+                      </Text>
+                      {editYear === y && (
+                        <MaterialIcons name="check-circle" size={20} color={colors.student.primary} />
+                      )}
+                    </Pressable>
+                  ))}
+                  <Button
+                    title="Back"
+                    onPress={() => setShowYearPicker(false)}
+                    variant="secondary"
+                    role="student"
+                    style={{ marginTop: spacing.md }}
+                  />
+                </>
+              ) : (
+                <>
+                  <Text style={styles.label}>Academic Year</Text>
+                  <Pressable
+                    onPress={() => setShowYearPicker(true)}
+                    style={styles.pickerTrigger}
+                  >
+                    <Text style={styles.pickerTriggerText}>{editYear || 'Select Year'}</Text>
+                    <MaterialIcons name="arrow-drop-down" size={24} color={colors.student.textSecondary} />
+                  </Pressable>
+
+                  <Text style={[styles.label, { marginTop: spacing.lg }]}>
+                    Your Classes ({editYear})
+                  </Text>
+                  {filteredClasses.length === 0 ? (
+                    <Text style={styles.emptyText}>No classes found for this year. Please select year first.</Text>
+                  ) : (
+                    <FlatList
+                      data={filteredClasses}
+                      keyExtractor={(item) => item.id}
+                      style={{ maxHeight: 300 }}
+                      renderItem={({ item }) => {
+                        const isSelected = editClasses.includes(item.className);
+                        return (
+                          <Pressable
+                            onPress={() => handleClassToggle(item.className)}
+                            style={[
+                              styles.classItem,
+                              {
+                                backgroundColor: isSelected ? colors.student.surfaceLight : colors.common.white,
+                                borderColor: isSelected ? colors.student.primary : colors.common.gray200,
+                              }
+                            ]}
+                          >
+                            <View style={{ flex: 1 }}>
+                              <Text style={[styles.className, { color: colors.student.text }]}>{item.className}</Text>
+                              <Text style={styles.classDesc}>{item.description}</Text>
+                            </View>
+                            {isSelected && (
+                              <MaterialIcons name="check-circle" size={20} color={colors.student.primary} />
+                            )}
+                          </Pressable>
+                        );
+                      }}
+                    />
+                  )}
+
+                  <View style={styles.modalFooter}>
+                    <Button
+                      title="Cancel"
+                      onPress={() => setShowEditModal(false)}
+                      variant="secondary"
+                      role="student"
+                      style={{ flex: 1 }}
+                    />
+                    <Button
+                      title="Update Profile"
+                      onPress={handleSaveProfile}
+                      loading={updating}
+                      role="student"
+                      style={{ flex: 2 }}
+                    />
+                  </View>
+                </>
+              )}
+            </View>
+          </View>
+        </View>
+      </Modal>
     </Screen>
   );
 }
@@ -251,36 +453,46 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   avatarCircle: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
     backgroundColor: 'rgba(255,255,255,0.3)',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: spacing.md,
   },
   avatarText: {
-    fontSize: 24,
+    fontSize: 28,
     fontWeight: '700',
     color: colors.common.white,
   },
   headerInfo: {
     flex: 1,
   },
+  nameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
   greeting: {
     fontSize: 14,
     color: 'rgba(255,255,255,0.9)',
     fontWeight: '500',
+    marginBottom: spacing.xs,
   },
   name: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: '700',
     color: colors.common.white,
-    marginTop: 2,
-    marginBottom: spacing.xs,
+  },
+  editProfileButton: {
+    padding: 4,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    borderRadius: 6,
   },
   badgeContainer: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: spacing.xs,
   },
   badge: {
@@ -290,7 +502,7 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.sm,
   },
   badgeText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '600',
     color: colors.common.white,
   },
@@ -313,9 +525,9 @@ const styles = StyleSheet.create({
     ...shadows.md,
   },
   scanIconContainer: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -375,5 +587,91 @@ const styles = StyleSheet.create({
   pressed: {
     opacity: 0.9,
     transform: [{ scale: 0.98 }],
+  },
+  // Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    borderTopLeftRadius: borderRadius.xl,
+    borderTopRightRadius: borderRadius.xl,
+    padding: spacing.lg,
+    maxHeight: '85%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.lg,
+  },
+  modalTitle: {
+    ...typography.h3,
+    fontWeight: '700',
+  },
+  modalBody: {
+    paddingBottom: spacing.xl,
+  },
+  label: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.common.gray600,
+    marginBottom: spacing.xs,
+  },
+  pickerTrigger: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: spacing.md,
+    backgroundColor: colors.common.gray50,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.common.gray200,
+  },
+  pickerTriggerText: {
+    fontSize: 16,
+    color: colors.common.gray800,
+  },
+  yearItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: spacing.md,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    marginBottom: spacing.xs,
+  },
+  yearText: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  classItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: spacing.md,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    marginBottom: spacing.xs,
+  },
+  className: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  classDesc: {
+    fontSize: 12,
+    color: colors.common.gray500,
+    marginTop: 2,
+  },
+  emptyText: {
+    textAlign: 'center',
+    color: colors.common.gray400,
+    marginTop: spacing.xl,
+    fontSize: 14,
+  },
+  modalFooter: {
+    flexDirection: 'row',
+    gap: spacing.md,
+    marginTop: spacing.xl,
   },
 });

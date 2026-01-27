@@ -133,16 +133,47 @@ export const classService = {
     },
 
     // Delete (deactivate) a class
-    async deleteClass(classId: string): Promise<void> {
+    async deleteClass(classId: string, className: string): Promise<void> {
         const supabase = getSharedSupabaseClient();
 
-        // Soft delete by setting is_active to false
+        // 1. Remove this class from all student profiles
+        await this.removeClassFromStudents(className);
+
+        // 2. Soft delete the class by setting is_active to false
         const { error } = await supabase
             .from('classes')
             .update({ is_active: false })
             .eq('id', classId);
 
         if (error) throw error;
+    },
+
+    // Remove a specific class name from all student profiles
+    async removeClassFromStudents(className: string): Promise<void> {
+        const supabase = getSharedSupabaseClient();
+
+        // Find all students who have this class in their list
+        const { data: students, error: fetchError } = await supabase
+            .from('profiles')
+            .select('id, class')
+            .eq('role', 'student')
+            .ilike('class', `%${className}%`);
+
+        if (fetchError) throw fetchError;
+        if (!students || students.length === 0) return;
+
+        // For each student, remove the class from their comma-separated list
+        const updates = students.map(student => {
+            const classes = student.class ? student.class.split(',').map((c: string) => c.trim()) : [];
+            const filteredClasses = classes.filter((c: string) => c !== className);
+
+            return supabase
+                .from('profiles')
+                .update({ class: filteredClasses.join(', ') })
+                .eq('id', student.id);
+        });
+
+        await Promise.all(updates);
     },
 
     // Get student count for a class
@@ -153,7 +184,7 @@ export const classService = {
             .from('profiles')
             .select('*', { count: 'exact', head: true })
             .eq('role', 'student')
-            .eq('class', className);
+            .ilike('class', `%${className}%`);
 
         if (error) throw error;
 
@@ -168,7 +199,7 @@ export const classService = {
             .from('profiles')
             .select('id, name, email, roll_number, class, year')
             .eq('role', 'student')
-            .eq('class', className)
+            .ilike('class', `%${className}%`)
             .order('roll_number', { ascending: true });
 
         if (error) throw error;
@@ -192,7 +223,7 @@ export const classService = {
             .from('profiles')
             .select('*', { count: 'exact', head: true })
             .eq('role', 'student')
-            .eq('class', className);
+            .ilike('class', `%${className}%`);
 
         // Get total sessions for this class
         const { count: sessionCount } = await supabase

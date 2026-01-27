@@ -35,7 +35,7 @@ export default function StudentLoginScreen() {
   };
 
   return (
-    <Screen role="student" scrollable={false}>
+    <Screen role="student">
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.container}

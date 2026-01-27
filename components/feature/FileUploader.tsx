@@ -13,7 +13,7 @@ interface FileUploaderProps {
     fileSize: number;
     base64Data?: string;
     uri?: string;
-  }) => void;
+  }) => Promise<void>;
   role?: 'student' | 'staff';
   disabled?: boolean;
 }
@@ -39,15 +39,18 @@ export function FileUploader({ onUpload, role = 'student', disabled = false }: F
 
       if (!result.canceled && result.assets) {
         setUploading(true);
-        for (const asset of result.assets) {
-          onUpload({
-            fileName: asset.fileName || `photo_${Date.now()}_${Math.random().toString(36).substr(2, 5)}.${asset.uri.split('.').pop()}`,
-            fileType: 'image/jpeg',
-            fileSize: asset.fileSize || 0,
-            base64Data: `data:image/jpeg;base64,${asset.base64}`,
-          });
+        try {
+          for (const asset of result.assets) {
+            await onUpload({
+              fileName: asset.fileName || `photo_${Date.now()}_${Math.random().toString(36).substr(2, 5)}.${asset.uri.split('.').pop()}`,
+              fileType: 'image/jpeg',
+              fileSize: asset.fileSize || 0,
+              base64Data: `data:image/jpeg;base64,${asset.base64}`,
+            });
+          }
+        } finally {
+          setUploading(false);
         }
-        setUploading(false);
       }
     } catch (error) {
       console.error('Picker error:', error);
@@ -66,15 +69,18 @@ export function FileUploader({ onUpload, role = 'student', disabled = false }: F
 
       if (!result.canceled && result.assets) {
         setUploading(true);
-        for (const file of result.assets) {
-          onUpload({
-            fileName: file.name,
-            fileType: file.mimeType || 'application/octet-stream',
-            fileSize: file.size || 0,
-            uri: file.uri,
-          });
+        try {
+          for (const file of result.assets) {
+            await onUpload({
+              fileName: file.name,
+              fileType: file.mimeType || 'application/octet-stream',
+              fileSize: file.size || 0,
+              uri: file.uri,
+            });
+          }
+        } finally {
+          setUploading(false);
         }
-        setUploading(false);
       }
     } catch (error) {
       Alert.alert('Error', 'Failed to pick document');
@@ -85,59 +91,78 @@ export function FileUploader({ onUpload, role = 'student', disabled = false }: F
   const isDisabled = uploading || disabled;
 
   return (
-    <View style={styles.container}>
-      <Pressable
-        onPress={handleImagePicker}
-        disabled={isDisabled}
-        style={({ pressed }) => [
-          styles.uploadCard,
-          { backgroundColor: colors.common.white },
-          isDisabled && styles.disabled,
-          pressed && !isDisabled && styles.pressed,
-        ]}
-      >
-        <LinearGradient
-          colors={['#60A5FA', '#3B82F6']}
-          style={styles.iconContainer}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
+    <View style={styles.outerContainer}>
+      <View style={styles.container}>
+        <Pressable
+          onPress={handleImagePicker}
+          disabled={isDisabled}
+          style={({ pressed }) => [
+            styles.uploadCard,
+            { backgroundColor: colors.common.white },
+            isDisabled && styles.disabled,
+            pressed && !isDisabled && styles.pressed,
+          ]}
         >
-          <MaterialIcons name="image" size={32} color={colors.common.white} />
-        </LinearGradient>
-        <Text style={[styles.cardTitle, { color: theme.text }]}>Photo</Text>
-        <Text style={[styles.cardDesc, { color: theme.textSecondary }]}>
-          From gallery
-        </Text>
-      </Pressable>
+          <LinearGradient
+            colors={['#60A5FA', '#3B82F6']}
+            style={styles.iconContainer}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+          >
+            <MaterialIcons name="image" size={32} color={colors.common.white} />
+          </LinearGradient>
+          <Text style={[styles.cardTitle, { color: theme.text }]}>Photo</Text>
+          <Text style={[styles.cardDesc, { color: theme.textSecondary }]}>
+            From gallery
+          </Text>
+        </Pressable>
 
-      <Pressable
-        onPress={handleDocumentPicker}
-        disabled={isDisabled}
-        style={({ pressed }) => [
-          styles.uploadCard,
-          { backgroundColor: colors.common.white },
-          isDisabled && styles.disabled,
-          pressed && !isDisabled && styles.pressed,
-        ]}
-      >
-        <LinearGradient
-          colors={['#A78BFA', '#8B5CF6']}
-          style={styles.iconContainer}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
+        <Pressable
+          onPress={handleDocumentPicker}
+          disabled={isDisabled}
+          style={({ pressed }) => [
+            styles.uploadCard,
+            { backgroundColor: colors.common.white },
+            isDisabled && styles.disabled,
+            pressed && !isDisabled && styles.pressed,
+          ]}
         >
-          <MaterialIcons name="insert-drive-file" size={32} color={colors.common.white} />
-        </LinearGradient>
-        <Text style={[styles.cardTitle, { color: theme.text }]}>Document</Text>
-        <Text style={[styles.cardDesc, { color: theme.textSecondary }]}>
-          PDF, DOC, etc.
-        </Text>
-      </Pressable>
+          <LinearGradient
+            colors={['#A78BFA', '#8B5CF6']}
+            style={styles.iconContainer}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+          >
+            <MaterialIcons name="insert-drive-file" size={32} color={colors.common.white} />
+          </LinearGradient>
+          <Text style={[styles.cardTitle, { color: theme.text }]}>Document</Text>
+          <Text style={[styles.cardDesc, { color: theme.textSecondary }]}>
+            PDF, DOC, etc.
+          </Text>
+        </Pressable>
+      </View>
+
+      {uploading && (
+        <View style={styles.uploadOverlay}>
+          <LinearGradient
+            colors={[theme.primary, theme.primary + 'EE']}
+            style={styles.overlayContent}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+          >
+            <MaterialIcons name="cloud-upload" size={24} color={colors.common.white} />
+            <Text style={styles.uploadingText}>Uploading your files...</Text>
+          </LinearGradient>
+        </View>
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  outerContainer: {
+    position: 'relative',
+  },
   container: {
     flexDirection: 'row',
     gap: spacing.md,
@@ -168,10 +193,33 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   disabled: {
-    opacity: 0.4,
+    opacity: 0.6,
   },
   pressed: {
     opacity: 0.85,
     transform: [{ scale: 0.98 }],
+  },
+  uploadOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: borderRadius.xl,
+    overflow: 'hidden',
+    zIndex: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.7)',
+  },
+  overlayContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    borderRadius: borderRadius.full,
+    gap: spacing.sm,
+    ...shadows.lg,
+  },
+  uploadingText: {
+    color: colors.common.white,
+    fontSize: 14,
+    fontWeight: '700',
   },
 });

@@ -1,5 +1,5 @@
 import React, { ReactNode } from 'react';
-import { View, ScrollView, StyleSheet, ViewStyle } from 'react-native';
+import { View, ScrollView, StyleSheet, ViewStyle, RefreshControlProps } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '@/constants/theme';
 
@@ -8,9 +8,10 @@ interface ScreenProps {
   role?: 'student' | 'staff';
   scrollable?: boolean;
   style?: ViewStyle;
+  refreshControl?: React.ReactElement<RefreshControlProps>;
 }
 
-export function Screen({ children, role = 'student', scrollable = true, style }: ScreenProps) {
+export function Screen({ children, role = 'student', scrollable = true, style, refreshControl }: ScreenProps) {
   const insets = useSafeAreaInsets();
   const theme = role === 'student' ? colors.student : colors.staff;
 
@@ -26,6 +27,7 @@ export function Screen({ children, role = 'student', scrollable = true, style }:
         style={containerStyle}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        refreshControl={refreshControl}
       >
         {children}
       </ScrollView>

@@ -5,6 +5,10 @@ export interface User {
   email: string;
   role: UserRole;
   name: string;
+  class?: string;
+  year?: string;
+  rollNumber?: string;
+  department?: string;
   createdAt: string;
 }
 
