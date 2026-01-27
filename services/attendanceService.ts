@@ -240,6 +240,114 @@ export const attendanceService = {
     }));
   },
 
+  async getAbsenteesBySession(sessionId: string, className?: string): Promise<any[]> {
+    const supabase = getSharedSupabaseClient();
+
+    // Get all students who attended this session
+    const { data: attendedStudents, error: attendanceError } = await supabase
+      .from('attendance_records')
+      .select('student_id')
+      .eq('session_id', sessionId);
+
+    if (attendanceError) throw attendanceError;
+
+    const attendedIds = (attendedStudents || []).map(s => s.student_id);
+
+    // Get all students (optionally filtered by class)
+    let query = supabase
+      .from('profiles')
+      .select('id, name, roll_number, class')
+      .eq('role', 'student');
+
+    if (className) {
+      query = query.eq('class', className);
+    }
+
+    const { data: allStudents, error: studentsError } = await query;
+
+    if (studentsError) throw studentsError;
+
+    // Filter out students who attended
+    const absentees = (allStudents || [])
+      .filter(student => !attendedIds.includes(student.id))
+      .map(student => ({
+        studentId: student.id,
+        studentName: student.name,
+        rollNumber: student.roll_number,
+        class: student.class,
+      }));
+
+    return absentees;
+  },
+
+  async getAbsenteesByClass(className: string, startDate?: string, endDate?: string): Promise<any> {
+    const supabase = getSharedSupabaseClient();
+
+    // Get all students in the class
+    const { data: allStudents, error: studentsError } = await supabase
+      .from('profiles')
+      .select('id, name, roll_number, class')
+      .eq('role', 'student')
+      .eq('class', className);
+
+    if (studentsError) throw studentsError;
+
+    // Get all sessions in the date range (or all sessions)
+    let sessionsQuery = supabase
+      .from('attendance_sessions')
+      .select('*')
+      .order('date', { ascending: false });
+
+    if (startDate && endDate) {
+      sessionsQuery = sessionsQuery.gte('date', startDate).lte('date', endDate);
+    }
+
+    const { data: sessions, error: sessionsError } = await sessionsQuery;
+
+    if (sessionsError) throw sessionsError;
+
+    // For each student, calculate their attendance
+    const studentStats = await Promise.all(
+      (allStudents || []).map(async (student) => {
+        const { data: attendanceRecords } = await supabase
+          .from('attendance_records')
+          .select('session_id')
+          .eq('student_id', student.id);
+
+        const attendedSessionIds = new Set(
+          (attendanceRecords || []).map(r => r.session_id)
+        );
+
+        const totalSessions = sessions?.length || 0;
+        const attendedSessions = (sessions || []).filter(s =>
+          attendedSessionIds.has(s.id)
+        ).length;
+        const absentSessions = totalSessions - attendedSessions;
+        const attendanceRate = totalSessions > 0
+          ? (attendedSessions / totalSessions) * 100
+          : 0;
+
+        return {
+          studentId: student.id,
+          studentName: student.name,
+          rollNumber: student.roll_number,
+          class: student.class,
+          totalSessions,
+          attendedSessions,
+          absentSessions,
+          attendanceRate: Math.round(attendanceRate * 10) / 10,
+        };
+      })
+    );
+
+    return {
+      className,
+      totalStudents: allStudents?.length || 0,
+      totalSessions: sessions?.length || 0,
+      students: studentStats.sort((a, b) => a.rollNumber.localeCompare(b.rollNumber)),
+    };
+  },
+
   subscribeToSessions(callback: () => void): RealtimeChannel {
     const supabase = getSharedSupabaseClient();
     const channelId = `sessions_${Math.random().toString(36).slice(2, 9)}`;

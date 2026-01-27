@@ -34,6 +34,16 @@ export interface UploadedFile {
   thumbnailUri?: string;
 }
 
+export interface Class {
+  id: string;
+  className: string;
+  description?: string;
+  year?: string;
+  createdBy: string;
+  isActive: boolean;
+  createdAt: string;
+}
+
 export interface AttendanceSession {
   id: string;
   sessionName: string;
@@ -42,6 +52,7 @@ export interface AttendanceSession {
   qrCode: string;
   createdBy: string;
   isActive: boolean;
+  classFilter?: string; // Optional: filter session by specific class
 }
 
 export interface AttendanceRecord {

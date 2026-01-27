@@ -107,10 +107,10 @@ export default function StudentDashboardScreen() {
   if (!user || !studentProfile) return null;
 
   return (
-    <Screen role="student">
+    <Screen role="student" scrollable={false}>
       <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
 
-      <View style={styles.container}>
+      <View style={[styles.container, { flex: 1 }]}>
         {/* Header Card */}
         <LinearGradient
           colors={colors.student.gradient}

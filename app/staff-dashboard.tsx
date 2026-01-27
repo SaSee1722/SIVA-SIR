@@ -16,8 +16,9 @@ import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import { useAlert } from '@/template';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { pdfReportService } from '@/services/pdfReportService';
 
-type ViewMode = 'files' | 'qr' | 'attendance';
+type ViewMode = 'files' | 'qr' | 'attendance' | 'classes';
 type AttendanceViewMode = 'all' | 'session' | 'date-range';
 
 export default function StaffDashboardScreen() {
@@ -95,24 +96,24 @@ export default function StaffDashboardScreen() {
         return;
       }
 
-      // Generate CSV
-      const header = 'Student Name,Roll Number,Class,Session,Date,Marked At\n';
-      const rows = displayRecords
-        .map(
-          (r) =>
-            `${r.studentName},${r.rollNumber},${r.class},${r.sessionName},${r.date},${r.markedAt}`
-        )
-        .join('\n');
-      const csvContent = header + rows;
+      // Prepare report data
+      const reportData = {
+        records: displayRecords,
+        reportType,
+        sessionName: reportType === 'Session' && selectedSessionId
+          ? sessions.find(s => s.id === selectedSessionId)?.sessionName
+          : undefined,
+        dateRange: reportType === 'Date Range' && startDate && endDate
+          ? { start: startDate, end: endDate }
+          : undefined,
+      };
 
-      const fileName = `attendance_report_${reportType.toLowerCase().replace(/\s+/g, '_')}_${Date.now()}.csv`;
-      const fileUri = `${FileSystem.documentDirectory}${fileName}`;
+      // Generate and share professional PDF report
+      await pdfReportService.generateAttendanceReport(reportData);
 
-      await FileSystem.writeAsStringAsync(fileUri, csvContent);
-      await Sharing.shareAsync(fileUri);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Export error:', error);
-      showAlert('Error', 'Failed to generate report');
+      showAlert('Error', error.message || 'Failed to generate report');
     }
   };
 
@@ -471,13 +472,33 @@ export default function StaffDashboardScreen() {
     );
   };
 
+  const renderClassesView = () => (
+    <View style={styles.section}>
+      <Text style={[styles.sectionTitle, { color: colors.staff.text }]}>
+        Class Management
+      </Text>
+      <View style={[styles.infoCard, { backgroundColor: colors.staff.surface, borderColor: colors.staff.border }]}>
+        <MaterialIcons name="school" size={48} color={colors.staff.primary} style={{ alignSelf: 'center', marginBottom: spacing.md }} />
+        <Text style={[styles.infoText, { color: colors.staff.text }]}>
+          Manage your classes, students, and academic year settings from here.
+        </Text>
+        <Button
+          title="Go to Class Management"
+          onPress={() => router.push('/class-management')}
+          role="staff"
+          style={{ marginTop: spacing.lg }}
+        />
+      </View>
+    </View>
+  );
+
   if (!user) return null;
 
   return (
-    <Screen role="staff">
+    <Screen role="staff" scrollable={false}>
       <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
 
-      <View style={styles.container}>
+      <View style={[styles.container, { flex: 1 }]}>
         <View style={styles.header}>
           <View>
             <Text style={[styles.greeting, { color: colors.staff.textSecondary }]}>
@@ -505,7 +526,7 @@ export default function StaffDashboardScreen() {
           >
             <MaterialIcons
               name="folder"
-              size={24}
+              size={20}
               color={viewMode === 'files' ? colors.staff.primary : colors.staff.textSecondary}
             />
             <Text
@@ -530,7 +551,7 @@ export default function StaffDashboardScreen() {
           >
             <MaterialIcons
               name="qr-code"
-              size={24}
+              size={20}
               color={viewMode === 'qr' ? colors.staff.primary : colors.staff.textSecondary}
             />
             <Text
@@ -557,7 +578,7 @@ export default function StaffDashboardScreen() {
           >
             <MaterialIcons
               name="people"
-              size={24}
+              size={20}
               color={
                 viewMode === 'attendance' ? colors.staff.primary : colors.staff.textSecondary
               }
@@ -576,11 +597,41 @@ export default function StaffDashboardScreen() {
               Attendance
             </Text>
           </Pressable>
+
+          <Pressable
+            onPress={() => setViewMode('classes')}
+            style={[
+              styles.tab,
+              viewMode === 'classes' && { borderBottomColor: colors.staff.primary },
+            ]}
+          >
+            <MaterialIcons
+              name="school"
+              size={20}
+              color={
+                viewMode === 'classes' ? colors.staff.primary : colors.staff.textSecondary
+              }
+            />
+            <Text
+              style={[
+                styles.tabText,
+                {
+                  color:
+                    viewMode === 'classes'
+                      ? colors.staff.primary
+                      : colors.staff.textSecondary,
+                },
+              ]}
+            >
+              Classes
+            </Text>
+          </Pressable>
         </View>
 
         {viewMode === 'files' && renderFilesView()}
         {viewMode === 'qr' && renderQRView()}
         {viewMode === 'attendance' && renderAttendanceView()}
+        {viewMode === 'classes' && renderClassesView()}
       </View>
     </Screen>
   );
@@ -613,23 +664,28 @@ const styles = StyleSheet.create({
   },
   tabs: {
     flexDirection: 'row',
-    borderBottomWidth: 1,
-    borderBottomColor: colors.common.gray200,
+    backgroundColor: colors.staff.surface,
+    padding: spacing.xs,
+    borderRadius: borderRadius.lg,
     marginBottom: spacing.xl,
+    borderWidth: 1,
+    borderColor: colors.common.gray200,
   },
   tab: {
     flex: 1,
-    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: spacing.md,
-    gap: spacing.xs,
-    borderBottomWidth: 3,
-    borderBottomColor: 'transparent',
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.md,
+    gap: 4,
+  },
+  tabActive: {
+    backgroundColor: colors.staff.primary + '15', // Subtle primary tint
   },
   tabText: {
-    ...typography.bodySmall,
+    fontSize: 10,
     fontWeight: '600',
+    letterSpacing: 0.2,
   },
   section: {
     marginBottom: spacing.xl,
