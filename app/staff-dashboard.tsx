@@ -17,6 +17,7 @@ import * as Sharing from 'expo-sharing';
 import { useAlert } from '@/template';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { pdfReportService } from '@/services/pdfReportService';
+import { attendanceService } from '@/services/attendanceService';
 
 type ViewMode = 'files' | 'qr' | 'attendance' | 'classes';
 type AttendanceViewMode = 'all' | 'session' | 'date-range';
@@ -43,6 +44,7 @@ export default function StaffDashboardScreen() {
   const [endDate, setEndDate] = useState('');
   const [selectedSessionId, setSelectedSessionId] = useState('');
   const [filteredRecords, setFilteredRecords] = useState<AttendanceRecord[]>([]);
+  const [absentStudents, setAbsentStudents] = useState<any[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [showStartDatePicker, setShowStartDatePicker] = useState(false);
   const [showEndDatePicker, setShowEndDatePicker] = useState(false);
@@ -91,7 +93,23 @@ export default function StaffDashboardScreen() {
       const displayRecords =
         attendanceViewMode === 'all' && filteredRecords.length === 0 ? records : filteredRecords;
 
-      if (displayRecords.length === 0) {
+      // Fetch absent students based on report type
+      let absentRecords: any[] = [];
+      let totalStudents: number | undefined = undefined;
+
+      if (reportType === 'Session' && selectedSessionId) {
+        // For session reports, get absentees for that specific session
+        absentRecords = await attendanceService.getAbsenteesBySession(selectedSessionId);
+        totalStudents = displayRecords.length + absentRecords.length;
+      } else {
+        // For "All" or "Date Range" reports, we can't easily determine absentees
+        // But we can show the total unique students who attended
+        const uniqueStudentIds = new Set(displayRecords.map(r => r.studentId));
+        totalStudents = uniqueStudentIds.size;
+      }
+
+      // Allow report generation even if only absent records exist
+      if (displayRecords.length === 0 && absentRecords.length === 0) {
         showAlert('No Data', 'There are no records to export');
         return;
       }
@@ -99,6 +117,8 @@ export default function StaffDashboardScreen() {
       // Prepare report data
       const reportData = {
         records: displayRecords,
+        absentRecords,
+        totalStudents,
         reportType,
         sessionName: reportType === 'Session' && selectedSessionId
           ? sessions.find(s => s.id === selectedSessionId)?.sessionName
@@ -106,6 +126,38 @@ export default function StaffDashboardScreen() {
         dateRange: reportType === 'Date Range' && startDate && endDate
           ? { start: startDate, end: endDate }
           : undefined,
+      };
+
+      // Generate and share professional PDF report
+      await pdfReportService.generateAttendanceReport(reportData);
+
+    } catch (error: any) {
+      console.error('Export error:', error);
+      showAlert('Error', error.message || 'Failed to generate report');
+    }
+  };
+
+  const handleDownloadSessionReport = async (sessionId: string, sessionName: string) => {
+    try {
+      // Get records for this specific session
+      const sessionRecords = getSessionRecords(sessionId);
+
+      // Fetch absent students for this session
+      const absentRecords = await attendanceService.getAbsenteesBySession(sessionId);
+      const totalStudents = sessionRecords.length + absentRecords.length;
+
+      if (sessionRecords.length === 0 && absentRecords.length === 0) {
+        showAlert('No Data', 'There are no records for this session');
+        return;
+      }
+
+      // Prepare report data
+      const reportData = {
+        records: sessionRecords,
+        absentRecords,
+        totalStudents,
+        reportType: 'Session',
+        sessionName,
       };
 
       // Generate and share professional PDF report
@@ -134,9 +186,10 @@ export default function StaffDashboardScreen() {
   const handleViewAllRecords = () => {
     setAttendanceViewMode('all');
     setFilteredRecords(records);
+    setAbsentStudents([]); // Clear absent students for "all" view
   };
 
-  const handleViewSessionRecords = () => {
+  const handleViewSessionRecords = async () => {
     if (!selectedSessionId) {
       showAlert('Error', 'Please select a session');
       return;
@@ -144,6 +197,15 @@ export default function StaffDashboardScreen() {
     setAttendanceViewMode('session');
     const sessionRecs = getSessionRecords(selectedSessionId);
     setFilteredRecords(sessionRecs);
+
+    // Fetch absent students for this session
+    try {
+      const absentees = await attendanceService.getAbsenteesBySession(selectedSessionId);
+      setAbsentStudents(absentees);
+    } catch (error) {
+      console.error('Error fetching absentees:', error);
+      setAbsentStudents([]);
+    }
   };
 
   const handleViewDateRangeRecords = async () => {
@@ -154,6 +216,7 @@ export default function StaffDashboardScreen() {
     setAttendanceViewMode('date-range');
     const dateRecs = await getDateRangeRecords(startDate, endDate);
     setFilteredRecords(dateRecs);
+    setAbsentStudents([]); // Clear absent students for date range view
   };
 
   const renderFilesView = () => (
@@ -312,8 +375,7 @@ export default function StaffDashboardScreen() {
                 keyExtractor={(item) => item.id}
                 scrollEnabled={false}
                 renderItem={({ item }) => (
-                  <Pressable
-                    onPress={() => setSelectedSessionId(item.id)}
+                  <View
                     style={[
                       styles.sessionItem,
                       {
@@ -325,18 +387,33 @@ export default function StaffDashboardScreen() {
                       },
                     ]}
                   >
-                    <View style={styles.sessionInfo}>
+                    <Pressable
+                      onPress={() => setSelectedSessionId(item.id)}
+                      style={styles.sessionInfo}
+                    >
                       <Text style={[styles.sessionName, { color: colors.staff.text }]}>
                         {item.sessionName}
                       </Text>
                       <Text style={[styles.sessionDate, { color: colors.staff.textSecondary }]}>
                         {item.date} • {item.time}
                       </Text>
+                    </Pressable>
+                    <View style={styles.sessionActions}>
+                      {selectedSessionId === item.id && (
+                        <MaterialIcons name="check-circle" size={24} color={colors.staff.primary} style={{ marginRight: spacing.xs }} />
+                      )}
+                      <Pressable
+                        onPress={() => handleDownloadSessionReport(item.id, item.sessionName)}
+                        style={({ pressed }) => [
+                          styles.sessionDownloadButton,
+                          { backgroundColor: colors.staff.primary },
+                          pressed && styles.pressed,
+                        ]}
+                      >
+                        <MaterialIcons name="download" size={18} color={colors.common.white} />
+                      </Pressable>
                     </View>
-                    {selectedSessionId === item.id && (
-                      <MaterialIcons name="check-circle" size={24} color={colors.staff.primary} />
-                    )}
-                  </Pressable>
+                  </View>
                 )}
                 ItemSeparatorComponent={() => <View style={{ height: spacing.xs }} />}
               />
@@ -431,7 +508,8 @@ export default function StaffDashboardScreen() {
             </Pressable>
           </View>
 
-          {displayRecords.length === 0 ? (
+
+          {displayRecords.length === 0 && absentStudents.length === 0 ? (
             <View style={styles.emptyContainer}>
               <MaterialIcons name="event-busy" size={64} color={colors.staff.border} />
               <Text style={[styles.emptyText, { color: colors.staff.textSecondary }]}>
@@ -439,33 +517,75 @@ export default function StaffDashboardScreen() {
               </Text>
             </View>
           ) : (
-            <FlatList
-              data={displayRecords}
-              keyExtractor={(item) => item.id}
-              scrollEnabled={false}
-              renderItem={({ item }) => (
-                <View
-                  style={[
-                    styles.recordCard,
-                    { backgroundColor: colors.staff.surface, borderColor: colors.staff.border },
-                  ]}
-                >
-                  <View style={styles.recordInfo}>
-                    <Text style={[styles.recordName, { color: colors.staff.text }]}>
-                      {item.studentName}
-                    </Text>
-                    <Text style={[styles.recordDetails, { color: colors.staff.textSecondary }]}>
-                      Roll: {item.rollNumber} • Class: {item.class}
-                    </Text>
-                    <Text style={[styles.recordDetails, { color: colors.staff.textSecondary }]}>
-                      {item.sessionName} • {item.date}
-                    </Text>
-                  </View>
-                  <MaterialIcons name="check-circle" size={24} color={colors.staff.success} />
-                </View>
+            <>
+              {displayRecords.length > 0 && (
+                <>
+                  <Text style={[styles.sectionSubtitle, { color: colors.staff.text, marginBottom: spacing.sm }]}>
+                    Present Students ({displayRecords.length})
+                  </Text>
+                  <FlatList
+                    data={displayRecords}
+                    keyExtractor={(item) => item.id}
+                    scrollEnabled={false}
+                    renderItem={({ item }) => (
+                      <View
+                        style={[
+                          styles.recordCard,
+                          { backgroundColor: colors.staff.surface, borderColor: colors.staff.border },
+                        ]}
+                      >
+                        <View style={styles.recordInfo}>
+                          <Text style={[styles.recordName, { color: colors.staff.text }]}>
+                            {item.studentName}
+                          </Text>
+                          <Text style={[styles.recordDetails, { color: colors.staff.textSecondary }]}>
+                            Roll: {item.rollNumber} • Class: {item.class}
+                          </Text>
+                          <Text style={[styles.recordDetails, { color: colors.staff.textSecondary }]}>
+                            {item.sessionName} • {item.date}
+                          </Text>
+                        </View>
+                        <MaterialIcons name="check-circle" size={24} color={colors.staff.success} />
+                      </View>
+                    )}
+                    ItemSeparatorComponent={() => <View style={{ height: spacing.sm }} />}
+                  />
+                </>
               )}
-              ItemSeparatorComponent={() => <View style={{ height: spacing.sm }} />}
-            />
+
+              {absentStudents.length > 0 && (
+                <>
+                  <Text style={[styles.sectionSubtitle, { color: colors.staff.text, marginTop: displayRecords.length > 0 ? spacing.lg : 0, marginBottom: spacing.sm }]}>
+                    Absent Students ({absentStudents.length})
+                  </Text>
+                  <FlatList
+                    data={absentStudents}
+                    keyExtractor={(item) => item.studentId}
+                    scrollEnabled={false}
+                    renderItem={({ item }) => (
+                      <View
+                        style={[
+                          styles.recordCard,
+                          styles.absentCard,
+                          { backgroundColor: '#FEF2F2', borderColor: '#EF4444' },
+                        ]}
+                      >
+                        <View style={styles.recordInfo}>
+                          <Text style={[styles.recordName, { color: colors.staff.text }]}>
+                            {item.studentName}
+                          </Text>
+                          <Text style={[styles.recordDetails, { color: colors.staff.textSecondary }]}>
+                            Roll: {item.rollNumber} • Class: {item.class}
+                          </Text>
+                        </View>
+                        <MaterialIcons name="cancel" size={24} color="#EF4444" />
+                      </View>
+                    )}
+                    ItemSeparatorComponent={() => <View style={{ height: spacing.sm }} />}
+                  />
+                </>
+              )}
+            </>
           )}
         </View>
       </View>
@@ -745,6 +865,16 @@ const styles = StyleSheet.create({
     ...typography.caption,
     marginTop: 2,
   },
+  sessionActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  sessionDownloadButton: {
+    padding: spacing.xs,
+    borderRadius: borderRadius.sm,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   recordsContainer: {
     marginTop: spacing.lg,
   },
@@ -756,6 +886,13 @@ const styles = StyleSheet.create({
   },
   recordsTitle: {
     ...typography.h3,
+  },
+  sectionSubtitle: {
+    ...typography.body,
+    fontWeight: '700',
+  },
+  absentCard: {
+    // Additional styling for absent cards (combined with recordCard)
   },
   downloadButton: {
     flexDirection: 'row',

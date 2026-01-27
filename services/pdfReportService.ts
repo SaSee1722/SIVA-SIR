@@ -2,54 +2,66 @@ import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { AttendanceRecord } from '@/types';
 
+interface AbsentRecord {
+  studentId: string;
+  studentName: string;
+  rollNumber: string;
+  class: string;
+}
+
 interface ReportData {
-    records: AttendanceRecord[];
-    reportType: string;
-    sessionName?: string;
-    dateRange?: { start: string; end: string };
+  records: AttendanceRecord[];
+  absentRecords?: AbsentRecord[];
+  reportType: string;
+  sessionName?: string;
+  dateRange?: { start: string; end: string };
+  totalStudents?: number;
 }
 
 export const pdfReportService = {
-    async generateAttendanceReport(data: ReportData): Promise<void> {
-        const { records, reportType, sessionName, dateRange } = data;
+  async generateAttendanceReport(data: ReportData): Promise<void> {
+    const { records, absentRecords = [], reportType, sessionName, dateRange, totalStudents } = data;
 
-        if (records.length === 0) {
-            throw new Error('No records to generate report');
-        }
+    if (records.length === 0 && absentRecords.length === 0) {
+      throw new Error('No records to generate report');
+    }
 
-        // Calculate statistics
-        const totalPresent = records.length;
-        const uniqueStudents = new Set(records.map(r => r.studentId)).size;
-        const uniqueSessions = new Set(records.map(r => r.sessionId)).size;
+    // Calculate statistics
+    const totalPresent = records.length;
+    const totalAbsent = absentRecords.length;
+    const totalCount = totalStudents || (totalPresent + totalAbsent);
+    const attendanceRate = totalCount > 0 ? ((totalPresent / totalCount) * 100).toFixed(1) : '0.0';
+    const uniqueStudents = new Set(records.map(r => r.studentId)).size;
+    const uniqueSessions = new Set(records.map(r => r.sessionId)).size;
 
-        // Generate report title and subtitle
-        let reportTitle = 'Attendance Report';
-        let reportSubtitle = '';
+    // Generate report title and subtitle
+    let reportTitle = 'Attendance Report';
+    let reportSubtitle = '';
 
-        if (reportType === 'Session' && sessionName) {
-            reportTitle = 'Session Attendance Report';
-            reportSubtitle = sessionName;
-        } else if (reportType === 'Date Range' && dateRange) {
-            reportTitle = 'Date Range Attendance Report';
-            reportSubtitle = `${dateRange.start} to ${dateRange.end}`;
-        } else {
-            reportTitle = 'Complete Attendance Report';
-            reportSubtitle = 'All Sessions';
-        }
+    if (reportType === 'Session' && sessionName) {
+      reportTitle = 'Session Attendance Report';
+      reportSubtitle = sessionName;
+    } else if (reportType === 'Date Range' && dateRange) {
+      reportTitle = 'Date Range Attendance Report';
+      reportSubtitle = `${dateRange.start} to ${dateRange.end}`;
+    } else {
+      reportTitle = 'Complete Attendance Report';
+      reportSubtitle = 'All Sessions';
+    }
 
-        const currentDate = new Date().toLocaleDateString('en-US', {
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric',
-        });
+    const currentDate = new Date().toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    });
 
-        const currentTime = new Date().toLocaleTimeString('en-US', {
-            hour: '2-digit',
-            minute: '2-digit',
-        });
+    const currentTime = new Date().toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit',
+    });
 
-        // Generate HTML content matching app's card layout
-        const htmlContent = `
+    // Generate HTML content matching app's card layout
+    const htmlContent = `
       <!DOCTYPE html>
       <html>
         <head>
@@ -131,7 +143,7 @@ export const pdfReportService = {
             
             .summary-stats {
               display: grid;
-              grid-template-columns: repeat(3, 1fr);
+              grid-template-columns: repeat(4, 1fr);
               gap: 15px;
             }
             
@@ -239,6 +251,25 @@ export const pdfReportService = {
               flex-shrink: 0;
             }
             
+            .absent-card {
+              border-color: #ef4444 !important;
+              background: #fef2f2 !important;
+            }
+            
+            .absent-icon {
+              width: 28px;
+              height: 28px;
+              background: #ef4444;
+              border-radius: 50%;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              color: white;
+              font-size: 18px;
+              font-weight: bold;
+              flex-shrink: 0;
+            }
+            
             .empty-state {
               text-align: center;
               padding: 60px 20px;
@@ -305,39 +336,39 @@ export const pdfReportService = {
             <div class="summary-title">Attendance Summary</div>
             <div class="summary-stats">
               <div class="stat-item">
+                <div class="stat-value">${totalCount}</div>
+                <div class="stat-label">Total Students</div>
+              </div>
+              <div class="stat-item">
                 <div class="stat-value">${totalPresent}</div>
-                <div class="stat-label">Total Present</div>
+                <div class="stat-label">Present</div>
               </div>
               <div class="stat-item">
-                <div class="stat-value">${uniqueStudents}</div>
-                <div class="stat-label">Unique Students</div>
+                <div class="stat-value">${totalAbsent}</div>
+                <div class="stat-label">Absent</div>
               </div>
               <div class="stat-item">
-                <div class="stat-value">${uniqueSessions}</div>
-                <div class="stat-label">Sessions</div>
+                <div class="stat-value">${attendanceRate}%</div>
+                <div class="stat-label">Attendance Rate</div>
               </div>
             </div>
           </div>
           
-          <div class="section-header">
-            <h2 class="section-title">Attendance Records</h2>
-            <span class="record-count">${records.length} ${records.length === 1 ? 'Record' : 'Records'}</span>
-          </div>
           
-          ${records.length === 0 ? `
-            <div class="empty-state">
-              <div class="empty-icon">📋</div>
-              <div class="empty-text">No attendance records found</div>
+          ${records.length > 0 ? `
+            <div class="section-header">
+              <h2 class="section-title">Present Students</h2>
+              <span class="record-count">${records.length} ${records.length === 1 ? 'Student' : 'Students'}</span>
             </div>
-          ` : `
+            
             <div class="records-grid">
               ${records.map((record) => {
-            const markedTime = new Date(record.markedAt).toLocaleTimeString('en-US', {
-                hour: '2-digit',
-                minute: '2-digit',
-            });
+      const markedTime = new Date(record.markedAt).toLocaleTimeString('en-US', {
+        hour: '2-digit',
+        minute: '2-digit',
+      });
 
-            return `
+      return `
                   <div class="record-card">
                     <div class="record-info">
                       <div class="student-name">${record.studentName}</div>
@@ -351,9 +382,43 @@ export const pdfReportService = {
                     <div class="check-icon">✓</div>
                   </div>
                 `;
-        }).join('')}
+    }).join('')}
             </div>
-          `}
+          ` : ''}
+          
+          ${absentRecords.length > 0 ? `
+            <div class="section-header" style="margin-top: ${records.length > 0 ? '30px' : '0'};">
+              <h2 class="section-title">Absent Students</h2>
+              <span class="record-count">${absentRecords.length} ${absentRecords.length === 1 ? 'Student' : 'Students'}</span>
+            </div>
+            
+            <div class="records-grid">
+              ${absentRecords.map((record) => {
+      return `
+                  <div class="record-card absent-card">
+                    <div class="record-info">
+                      <div class="student-name">${record.studentName}</div>
+                      <div class="record-details">
+                        Roll: ${record.rollNumber}<span class="detail-separator">•</span>Class: ${record.class}
+                      </div>
+                    </div>
+                    <div class="absent-icon">✕</div>
+                  </div>
+                `;
+    }).join('')}
+            </div>
+          ` : ''}
+          
+          ${records.length === 0 && absentRecords.length === 0 ? `
+            <div class="section-header">
+              <h2 class="section-title">Attendance Records</h2>
+              <span class="record-count">0 Records</span>
+            </div>
+            <div class="empty-state">
+              <div class="empty-icon">📋</div>
+              <div class="empty-text">No attendance records found</div>
+            </div>
+          ` : ''}
           
           <div class="footer">
             <div>Generated by SIVA-SIR Education Portal</div>
@@ -363,26 +428,26 @@ export const pdfReportService = {
       </html>
     `;
 
-        try {
-            // Generate PDF
-            const { uri } = await Print.printToFileAsync({
-                html: htmlContent,
-                base64: false,
-            });
+    try {
+      // Generate PDF
+      const { uri } = await Print.printToFileAsync({
+        html: htmlContent,
+        base64: false,
+      });
 
-            // Share the PDF
-            if (await Sharing.isAvailableAsync()) {
-                await Sharing.shareAsync(uri, {
-                    mimeType: 'application/pdf',
-                    dialogTitle: 'Share Attendance Report',
-                    UTI: 'com.adobe.pdf',
-                });
-            } else {
-                throw new Error('Sharing is not available on this device');
-            }
-        } catch (error) {
-            console.error('PDF generation error:', error);
-            throw new Error('Failed to generate PDF report');
-        }
-    },
+      // Share the PDF
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(uri, {
+          mimeType: 'application/pdf',
+          dialogTitle: 'Share Attendance Report',
+          UTI: 'com.adobe.pdf',
+        });
+      } else {
+        throw new Error('Sharing is not available on this device');
+      }
+    } catch (error) {
+      console.error('PDF generation error:', error);
+      throw new Error('Failed to generate PDF report');
+    }
+  },
 };
