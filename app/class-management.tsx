@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, Pressable, FlatList, Modal, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -100,11 +100,7 @@ export default function ClassManagementScreen() {
 
     const yearOptions = ['I YEAR', 'II YEAR', 'III YEAR', 'IV YEAR'];
 
-    useEffect(() => {
-        loadClasses();
-    }, []);
-
-    const loadClasses = async () => {
+    const loadClasses = useCallback(async () => {
         try {
             setLoading(true);
             const allClasses = await classService.getAllClasses();
@@ -115,7 +111,11 @@ export default function ClassManagementScreen() {
         } finally {
             setLoading(false);
         }
-    };
+    }, [showAlert]);
+
+    useEffect(() => {
+        loadClasses();
+    }, [loadClasses]);
 
     const handleSelectClass = async (cls: Class) => {
         setSelectedClass(cls);

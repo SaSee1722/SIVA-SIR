@@ -795,4 +795,15 @@ const styles = StyleSheet.create({
   pressed: {
     opacity: 0.7,
   },
+  infoCard: {
+    padding: spacing.xl,
+    borderRadius: borderRadius.lg,
+    borderWidth: 1,
+    alignItems: 'center',
+  },
+  infoText: {
+    ...typography.body,
+    textAlign: 'center',
+    lineHeight: 22,
+  },
 });

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { View, Text, StyleSheet, Pressable, KeyboardAvoidingView, Platform, FlatList, Modal } from 'react-native';
 import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -24,17 +24,32 @@ export default function StudentSignupScreen() {
   const [availableYears, setAvailableYears] = useState<string[]>([]);
   const [showClassPicker, setShowClassPicker] = useState(false);
   const [showYearPicker, setShowYearPicker] = useState(false);
-  const [loadingClasses, setLoadingClasses] = useState(true);
   const { signup } = useAuth();
   const router = useRouter();
   const { showAlert } = useAlert();
 
-  const DEFAULT_YEARS = ['I YEAR', 'II YEAR', 'III YEAR', 'IV YEAR'];
+  const DEFAULT_YEARS = useMemo(() => ['I YEAR', 'II YEAR', 'III YEAR', 'IV YEAR'], []);
+
+  const loadClasses = useCallback(async () => {
+    try {
+      const availableClasses = await classService.getAllClasses();
+      setClasses(availableClasses);
+
+      // Extract unique years from existing classes, merging with defaults
+      const years = new Set<string>(DEFAULT_YEARS);
+      availableClasses.forEach(c => {
+        if (c.year) years.add(c.year);
+      });
+      setAvailableYears(Array.from(years).sort());
+    } catch (error) {
+      console.error('Error loading classes:', error);
+    }
+  }, [DEFAULT_YEARS]);
 
   useEffect(() => {
     loadClasses();
     setAvailableYears(DEFAULT_YEARS);
-  }, []);
+  }, [loadClasses, DEFAULT_YEARS]);
 
   useEffect(() => {
     if (year) {
@@ -49,26 +64,7 @@ export default function StudentSignupScreen() {
       setFilteredClasses([]);
       setStudentClass('');
     }
-  }, [year, classes]);
-
-  const loadClasses = async () => {
-    try {
-      setLoadingClasses(true);
-      const availableClasses = await classService.getAllClasses();
-      setClasses(availableClasses);
-
-      // Extract unique years from existing classes, merging with defaults
-      const years = new Set<string>(DEFAULT_YEARS);
-      availableClasses.forEach(c => {
-        if (c.year) years.add(c.year);
-      });
-      setAvailableYears(Array.from(years).sort());
-    } catch (error) {
-      console.error('Error loading classes:', error);
-    } finally {
-      setLoadingClasses(false);
-    }
-  };
+  }, [year, classes, studentClass]);
 
   const handleYearSelect = (selectedYear: string) => {
     setYear(selectedYear);
