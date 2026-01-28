@@ -8,6 +8,7 @@ export interface User {
   class?: string;
   year?: string;
   rollNumber?: string;
+  systemNumber?: string;
   department?: string;
   createdAt: string;
 }
@@ -17,6 +18,7 @@ export interface StudentProfile extends User {
   class: string;
   year: string;
   rollNumber: string;
+  systemNumber: string;
 }
 
 export interface StaffProfile extends User {
@@ -66,6 +68,7 @@ export interface AttendanceRecord {
   studentId: string;
   studentName: string;
   rollNumber: string;
+  systemNumber?: string;
   class: string;
   markedAt: string;
   date: string;

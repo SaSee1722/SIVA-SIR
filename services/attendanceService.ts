@@ -102,7 +102,8 @@ export const attendanceService = {
     studentId: string,
     studentName: string,
     rollNumber: string,
-    studentClass: string
+    studentClass: string,
+    systemNumber?: string
   ): Promise<AttendanceRecord> {
     const supabase = getSharedSupabaseClient();
 
@@ -125,6 +126,7 @@ export const attendanceService = {
       student_id: studentId,
       student_name: studentName,
       roll_number: rollNumber,
+      system_number: systemNumber,
       class: studentClass,
       marked_at: new Date().toISOString(),
       date: new Date().toISOString().split('T')[0],
@@ -145,6 +147,7 @@ export const attendanceService = {
       studentId: data.student_id,
       studentName: data.student_name,
       rollNumber: data.roll_number,
+      systemNumber: data.system_number,
       class: data.class,
       markedAt: data.marked_at,
       date: data.date,
@@ -167,6 +170,7 @@ export const attendanceService = {
       studentId: r.student_id,
       studentName: r.student_name,
       rollNumber: r.roll_number,
+      systemNumber: r.system_number,
       class: r.class,
       markedAt: r.marked_at,
       date: r.date,
@@ -189,6 +193,7 @@ export const attendanceService = {
       studentId: r.student_id,
       studentName: r.student_name,
       rollNumber: r.roll_number,
+      systemNumber: r.system_number,
       class: r.class,
       markedAt: r.marked_at,
       date: r.date,
@@ -212,6 +217,7 @@ export const attendanceService = {
       studentId: r.student_id,
       studentName: r.student_name,
       rollNumber: r.roll_number,
+      systemNumber: r.system_number,
       class: r.class,
       markedAt: r.marked_at,
       date: r.date,
@@ -234,6 +240,7 @@ export const attendanceService = {
       studentId: r.student_id,
       studentName: r.student_name,
       rollNumber: r.roll_number,
+      systemNumber: r.system_number,
       class: r.class,
       markedAt: r.marked_at,
       date: r.date,
@@ -256,7 +263,7 @@ export const attendanceService = {
     // Get all students (optionally filtered by class)
     let query = supabase
       .from('profiles')
-      .select('id, name, roll_number, class')
+      .select('id, name, roll_number, system_number, class')
       .eq('role', 'student');
 
     if (className) {
@@ -274,6 +281,7 @@ export const attendanceService = {
         studentId: student.id,
         studentName: student.name,
         rollNumber: student.roll_number,
+        systemNumber: student.system_number,
         class: student.class,
       }));
 

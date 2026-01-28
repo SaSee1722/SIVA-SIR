@@ -4,6 +4,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import * as SplashScreen from 'expo-splash-screen';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { AlertProvider } from '@/template';
+import { ToastProvider } from '@/components/ui/Toast';
 
 import { ProfessionalSplashScreen } from '@/components/ui/ProfessionalSplashScreen';
 
@@ -46,25 +47,27 @@ export default function RootLayout() {
 
   return (
     <AlertProvider>
-      <SafeAreaProvider>
-        <AuthProvider>
-          {showAnimatedSplash ? (
-            <ProfessionalSplashScreen onAnimationComplete={onAnimationComplete} />
-          ) : (
-            <Stack screenOptions={{ headerShown: false }}>
-              <Stack.Screen name="index" />
-              <Stack.Screen name="role-select" />
-              <Stack.Screen name="student-login" />
-              <Stack.Screen name="staff-login" />
-              <Stack.Screen name="student-signup" />
-              <Stack.Screen name="staff-signup" />
-              <Stack.Screen name="student-dashboard" />
-              <Stack.Screen name="staff-dashboard" />
-              <Stack.Screen name="qr-scanner" options={{ presentation: 'modal' }} />
-            </Stack>
-          )}
-        </AuthProvider>
-      </SafeAreaProvider>
+      <ToastProvider>
+        <SafeAreaProvider>
+          <AuthProvider>
+            {showAnimatedSplash ? (
+              <ProfessionalSplashScreen onAnimationComplete={onAnimationComplete} />
+            ) : (
+              <Stack screenOptions={{ headerShown: false }}>
+                <Stack.Screen name="index" />
+                <Stack.Screen name="role-select" />
+                <Stack.Screen name="student-login" />
+                <Stack.Screen name="staff-login" />
+                <Stack.Screen name="student-signup" />
+                <Stack.Screen name="staff-signup" />
+                <Stack.Screen name="student-dashboard" />
+                <Stack.Screen name="staff-dashboard" />
+                <Stack.Screen name="qr-scanner" options={{ presentation: 'modal' }} />
+              </Stack>
+            )}
+          </AuthProvider>
+        </SafeAreaProvider>
+      </ToastProvider>
     </AlertProvider>
   );
 }

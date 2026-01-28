@@ -18,6 +18,7 @@ export default function StudentSignupScreen() {
   const [selectedClasses, setSelectedClasses] = useState<string[]>([]);
   const [year, setYear] = useState('');
   const [rollNumber, setRollNumber] = useState('');
+  const [systemNumber, setSystemNumber] = useState('');
   const [loading, setLoading] = useState(false);
   const [classes, setClasses] = useState<Class[]>([]);
   const [filteredClasses, setFilteredClasses] = useState<Class[]>([]);
@@ -74,7 +75,7 @@ export default function StudentSignupScreen() {
   };
 
   const handleSignup = async () => {
-    if (!name || !email || !password || selectedClasses.length === 0 || !year || !rollNumber) {
+    if (!name || !email || !password || selectedClasses.length === 0 || !year || !rollNumber || !systemNumber) {
       showAlert('Error', 'Please fill in all fields (Select at least one class)');
       return;
     }
@@ -86,6 +87,7 @@ export default function StudentSignupScreen() {
         class: selectedClasses.join(', '),
         year,
         rollNumber,
+        systemNumber,
       });
       router.replace('/student-dashboard');
     } catch (error: any) {
@@ -158,6 +160,14 @@ export default function StudentSignupScreen() {
               value={rollNumber}
               onChangeText={setRollNumber}
               placeholder="e.g., 2112001"
+              role="student"
+            />
+
+            <Input
+              label="System Number"
+              value={systemNumber}
+              onChangeText={setSystemNumber}
+              placeholder="e.g., SYS-01"
               role="student"
             />
 

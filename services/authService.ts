@@ -20,6 +20,7 @@ export const authService = {
           class: additionalData.class,
           year: additionalData.year,
           roll_number: additionalData.rollNumber,
+          system_number: additionalData.systemNumber,
           department: additionalData.department,
         }
       }
@@ -107,6 +108,7 @@ export const authService = {
           const userObj = {
             ...profile,
             rollNumber: profile.roll_number,
+            systemNumber: profile.system_number,
             createdAt: profile.created_at,
           } as User;
 
@@ -147,6 +149,7 @@ export const authService = {
         class: meta.class,
         year: meta.year,
         rollNumber: meta.roll_number,
+        systemNumber: meta.system_number,
         department: meta.department,
         createdAt: userToUse.created_at,
       } as User;
@@ -215,6 +218,7 @@ export const authService = {
     return data.map(profile => ({
       ...profile,
       rollNumber: profile.roll_number,
+      systemNumber: profile.system_number,
       createdAt: profile.created_at
     })) as User[];
   },
@@ -226,6 +230,10 @@ export const authService = {
     if (mappedUpdates.rollNumber) {
       mappedUpdates.roll_number = mappedUpdates.rollNumber;
       delete mappedUpdates.rollNumber;
+    }
+    if (mappedUpdates.systemNumber) {
+      mappedUpdates.system_number = mappedUpdates.systemNumber;
+      delete mappedUpdates.systemNumber;
     }
     if (mappedUpdates.createdAt) {
       mappedUpdates.created_at = mappedUpdates.createdAt;
@@ -244,6 +252,7 @@ export const authService = {
     return {
       ...data,
       rollNumber: data.roll_number,
+      systemNumber: data.system_number,
       createdAt: data.created_at
     } as User;
   },

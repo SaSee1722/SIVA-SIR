@@ -48,7 +48,8 @@ export default function QRScannerScreen() {
         user!.id,
         user!.name,
         studentProfile.rollNumber,
-        studentProfile.class
+        studentProfile.class,
+        studentProfile.systemNumber
       );
 
       showAlert('Success', 'Attendance marked successfully!', [

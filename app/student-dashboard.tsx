@@ -13,10 +13,12 @@ import { AttendanceStats } from '@/components/feature/AttendanceStats';
 import { StudentProfile, User, Class } from '@/types';
 import { colors, typography, borderRadius, spacing, shadows } from '@/constants/theme';
 import { useAlert } from '@/template';
+import { useToast } from '@/components/ui/Toast';
 import * as FileSystem from 'expo-file-system';
 import { StaffSelector } from '@/components/feature/StaffSelector';
 import { classService } from '@/services/classService';
 import { Button } from '@/components/ui/Button';
+import { Input } from '@/components/ui/Input';
 
 export default function StudentDashboardScreen() {
   const { user, logout, updateProfile } = useAuth();
@@ -25,6 +27,7 @@ export default function StudentDashboardScreen() {
   const { records, sessions, refresh: refreshAttendance } = useAttendance();
   const router = useRouter();
   const { showAlert } = useAlert();
+  const { showToast } = useToast();
 
   const [refreshing, setRefreshing] = useState(false);
   const [selectedStaff, setSelectedStaff] = useState<User | null>(null);
@@ -36,7 +39,12 @@ export default function StudentDashboardScreen() {
   const [availableClasses, setAvailableClasses] = useState<Class[]>([]);
   const [filteredClasses, setFilteredClasses] = useState<Class[]>([]);
   const [showYearPicker, setShowYearPicker] = useState(false);
+  const [editSystemNumber, setEditSystemNumber] = useState('');
   const [updating, setUpdating] = useState(false);
+
+  // Stats Detail States
+  const [showStatsModal, setShowStatsModal] = useState(false);
+  const [statsModalType, setStatsModalType] = useState<'total' | 'present' | 'absent'>('total');
 
   const DEFAULT_YEARS = useMemo(() => ['I YEAR', 'II YEAR', 'III YEAR', 'IV YEAR'], []);
 
@@ -60,6 +68,7 @@ export default function StudentDashboardScreen() {
       loadAllClasses();
       setEditYear(studentProfile.year || '');
       setEditClasses(studentProfile.class ? studentProfile.class.split(',').map(s => s.trim()) : []);
+      setEditSystemNumber(studentProfile.systemNumber || '');
     }
   }, [showEditModal, studentProfile, loadAllClasses]);
 
@@ -81,8 +90,8 @@ export default function StudentDashboardScreen() {
   };
 
   const handleSaveProfile = async () => {
-    if (!editYear || editClasses.length === 0) {
-      showAlert('Error', 'Please select a year and at least one class');
+    if (!editYear || editClasses.length === 0 || !editSystemNumber) {
+      showAlert('Error', 'Please select a year, at least one class, and enter system number');
       return;
     }
 
@@ -91,11 +100,12 @@ export default function StudentDashboardScreen() {
       await updateProfile({
         year: editYear,
         class: editClasses.join(', '),
+        systemNumber: editSystemNumber,
       });
       setShowEditModal(false);
-      showAlert('Success', 'Profile updated successfully! Now you can mark attendance for your new classes.');
+      showToast('Profile updated successfully!', 'success');
     } catch (error: any) {
-      showAlert('Error', error.message || 'Failed to update profile');
+      showToast(error.message || 'Failed to update profile', 'error');
     } finally {
       setUpdating(false);
     }
@@ -126,8 +136,9 @@ export default function StudentDashboardScreen() {
         fileSize: file.fileSize,
         base64Data: finalBase64,
       });
+      showToast('File uploaded successfully!', 'success');
     } catch (error: any) {
-      showAlert('Error', `Failed to upload ${file.fileName}: ${error.message}`);
+      showToast(`Upload failed: ${error.message}`, 'error');
     }
   };
 
@@ -140,9 +151,9 @@ export default function StudentDashboardScreen() {
         onPress: async () => {
           try {
             await deleteFile(fileId);
-            showAlert('Success', 'File deleted');
+            showToast('File deleted successfully', 'success');
           } catch (error: any) {
-            showAlert('Error', 'Failed to delete file');
+            showToast('Failed to delete file', 'error');
           }
         },
       },
@@ -164,9 +175,22 @@ export default function StudentDashboardScreen() {
   };
 
   const studentRecords = records.filter((r) => r.studentId === user?.id);
-  const totalSessions = sessions.length;
+  const totalSessionsCount = sessions.length;
   const presentCount = studentRecords.length;
-  const absentCount = totalSessions - presentCount;
+  const absentCount = totalSessionsCount - presentCount;
+
+  const presentSessionIds = new Set(studentRecords.map(r => r.sessionId));
+
+  const statsModalData = useMemo(() => {
+    switch (statsModalType) {
+      case 'present':
+        return sessions.filter(s => presentSessionIds.has(s.id));
+      case 'absent':
+        return sessions.filter(s => !presentSessionIds.has(s.id));
+      default:
+        return sessions;
+    }
+  }, [statsModalType, sessions, presentSessionIds]);
 
   if (!user || !studentProfile) return null;
 
@@ -210,6 +234,9 @@ export default function StudentDashboardScreen() {
                   </View>
                   <View style={styles.badge}>
                     <Text style={styles.badgeText}>Roll: {studentProfile.rollNumber}</Text>
+                  </View>
+                  <View style={styles.badge}>
+                    <Text style={styles.badgeText}>System: {studentProfile.systemNumber || 'N/A'}</Text>
                   </View>
                 </View>
               </View>
@@ -259,10 +286,14 @@ export default function StudentDashboardScreen() {
             </Text>
           </View>
           <AttendanceStats
-            totalSessions={totalSessions}
+            totalSessions={totalSessionsCount}
             presentCount={presentCount}
             absentCount={absentCount}
             role="student"
+            onPressStat={(type) => {
+              setStatsModalType(type);
+              setShowStatsModal(true);
+            }}
           />
         </View>
 
@@ -303,6 +334,73 @@ export default function StudentDashboardScreen() {
           <FileList files={files} role="student" onDelete={handleDelete} />
         </View>
       </View>
+
+      {/* Attendance Stats Detail Modal */}
+      <Modal
+        visible={showStatsModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowStatsModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: colors.common.white }]}>
+            <View style={styles.modalHeader}>
+              <View>
+                <Text style={[styles.modalTitle, { color: colors.student.text }]}>
+                  {statsModalType.charAt(0).toUpperCase() + statsModalType.slice(1)} Sessions
+                </Text>
+                <Text style={{ color: colors.student.textSecondary, fontSize: 13, marginTop: 2 }}>
+                  {statsModalData.length} sessions found
+                </Text>
+              </View>
+              <Pressable onPress={() => setShowStatsModal(false)} hitSlop={8}>
+                <MaterialIcons name="close" size={24} color={colors.student.text} />
+              </Pressable>
+            </View>
+
+            <View style={styles.modalBody}>
+              <FlatList
+                data={statsModalData}
+                keyExtractor={(item) => item.id}
+                style={{ maxHeight: 500 }}
+                renderItem={({ item }) => {
+                  const isPresent = presentSessionIds.has(item.id);
+                  return (
+                    <View style={[styles.sessionItem, { borderColor: colors.common.gray100 }]}>
+                      <View style={[styles.sessionIcon, { backgroundColor: isPresent ? '#ECFDF5' : '#FEF2F2' }]}>
+                        <MaterialIcons
+                          name={isPresent ? "check-circle" : "cancel"}
+                          size={24}
+                          color={isPresent ? "#10B981" : "#EF4444"}
+                        />
+                      </View>
+                      <View style={{ flex: 1, marginLeft: spacing.md }}>
+                        <Text style={[styles.sessionName, { color: colors.student.text }]}>
+                          {item.sessionName}
+                        </Text>
+                        <Text style={{ color: colors.student.textSecondary, fontSize: 12 }}>
+                          {item.date} • {item.time}
+                        </Text>
+                      </View>
+                      <View style={[styles.statusBadge, { backgroundColor: isPresent ? '#ECFDF5' : '#FEF2F2' }]}>
+                        <Text style={[styles.statusText, { color: isPresent ? "#10B981" : "#EF4444" }]}>
+                          {isPresent ? 'Present' : 'Absent'}
+                        </Text>
+                      </View>
+                    </View>
+                  );
+                }}
+                ListEmptyComponent={
+                  <View style={styles.emptyContainer}>
+                    <MaterialIcons name="event-busy" size={48} color={colors.common.gray300} />
+                    <Text style={[styles.emptyText, { marginTop: spacing.md }]}>No sessions found in this category</Text>
+                  </View>
+                }
+              />
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* Edit Profile Modal */}
       <Modal
@@ -370,6 +468,14 @@ export default function StudentDashboardScreen() {
                     <Text style={styles.pickerTriggerText}>{editYear || 'Select Year'}</Text>
                     <MaterialIcons name="arrow-drop-down" size={24} color={colors.student.textSecondary} />
                   </Pressable>
+
+                  <Input
+                    label="System Number"
+                    value={editSystemNumber}
+                    onChangeText={setEditSystemNumber}
+                    placeholder="e.g., SYS-01"
+                    role="student"
+                  />
 
                   <Text style={[styles.label, { marginTop: spacing.lg }]}>
                     Your Classes ({editYear})
@@ -584,6 +690,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
   },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: spacing.xxl,
+  },
   pressed: {
     opacity: 0.9,
     transform: [{ scale: 0.98 }],
@@ -673,5 +785,33 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: spacing.md,
     marginTop: spacing.xl,
+  },
+  sessionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: spacing.md,
+    borderRadius: borderRadius.lg,
+    borderWidth: 1,
+    marginBottom: spacing.sm,
+  },
+  sessionIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  sessionName: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  statusBadge: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+    borderRadius: borderRadius.sm,
+  },
+  statusText: {
+    fontSize: 11,
+    fontWeight: '700',
   },
 });
