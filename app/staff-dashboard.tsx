@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Pressable, FlatList, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, Pressable, FlatList, RefreshControl, Modal } from 'react-native';
 import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useAuth } from '@/hooks/useAuth';
@@ -11,13 +11,15 @@ import { QRCodeDisplay } from '@/components/feature/QRCodeDisplay';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { AttendanceRecord } from '@/types';
-import { colors, typography, borderRadius, spacing } from '@/constants/theme';
+import { colors, typography, borderRadius, spacing, shadows } from '@/constants/theme';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import { useAlert } from '@/template';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { pdfReportService } from '@/services/pdfReportService';
 import { attendanceService } from '@/services/attendanceService';
+import { classService } from '@/services/classService';
+import { Class } from '@/types';
 
 type ViewMode = 'files' | 'qr' | 'attendance' | 'classes';
 type AttendanceViewMode = 'all' | 'session' | 'date-range';
@@ -48,14 +50,40 @@ export default function StaffDashboardScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [showStartDatePicker, setShowStartDatePicker] = useState(false);
   const [showEndDatePicker, setShowEndDatePicker] = useState(false);
+  const [availableClasses, setAvailableClasses] = useState<Class[]>([]);
+  const [selectedClass, setSelectedClass] = useState<string>('');
+  const [classTotalStudents, setClassTotalStudents] = useState<number>(0);
+  const [showEndSessionSummary, setShowEndSessionSummary] = useState(false);
+  const [lastEndedSessionAbsentees, setLastEndedSessionAbsentees] = useState<any[]>([]);
 
   const activeSession = sessions.find((s) => s.isActive);
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    await Promise.all([refreshFiles(), refreshAttendance()]);
+    await Promise.all([refreshFiles(), refreshAttendance(), loadClasses()]);
     setRefreshing(false);
   };
+
+  const loadClasses = async () => {
+    if (user?.id) {
+      try {
+        const classes = await classService.getClassesByStaff(user.id);
+        setAvailableClasses(classes);
+      } catch (error) {
+        console.error('Error loading classes:', error);
+      }
+    }
+  };
+
+  React.useEffect(() => {
+    loadClasses();
+  }, [user?.id]);
+
+  React.useEffect(() => {
+    if (activeSession?.classFilter) {
+      classService.getClassStudentCount(activeSession.classFilter).then(setClassTotalStudents);
+    }
+  }, [activeSession?.id]);
 
   const handleCreateSession = async () => {
     if (!sessionName.trim()) {
@@ -63,9 +91,16 @@ export default function StaffDashboardScreen() {
       return;
     }
 
+    if (!selectedClass) {
+      showAlert('Error', 'Please select a class for this session');
+      return;
+    }
+
     try {
-      await createSession(sessionName, user!.id);
+      await createSession(sessionName, user!.id, selectedClass);
       setSessionName('');
+      const count = await classService.getClassStudentCount(selectedClass);
+      setClassTotalStudents(count);
       showAlert('Success', 'QR Code generated successfully');
     } catch (error: any) {
       showAlert('Error', error.message || 'Failed to create session');
@@ -81,8 +116,14 @@ export default function StaffDashboardScreen() {
         text: 'End',
         style: 'destructive',
         onPress: async () => {
-          await deactivateSession(activeSession.id);
-          showAlert('Session Ended', 'Attendance session has been closed');
+          try {
+            const absentees = await attendanceService.getAbsenteesBySession(activeSession.id, activeSession.classFilter);
+            setLastEndedSessionAbsentees(absentees);
+            await deactivateSession(activeSession.id);
+            setShowEndSessionSummary(true);
+          } catch (error: any) {
+            showAlert('Error', error.message || 'Failed to end session');
+          }
         },
       },
     ]);
@@ -228,50 +269,162 @@ export default function StaffDashboardScreen() {
     </View>
   );
 
-  const renderQRView = () => (
-    <View style={styles.section}>
-      {!activeSession ? (
-        <>
-          <Text style={[styles.sectionTitle, { color: colors.staff.text }]}>
-            Generate QR Code
-          </Text>
-          <Input
-            label="Session Name"
-            value={sessionName}
-            onChangeText={setSessionName}
-            placeholder="e.g., Morning Class - Math"
-            role="staff"
-          />
-          <Button
-            title="Generate QR Code"
-            onPress={handleCreateSession}
-            role="staff"
-            style={{ marginTop: spacing.md }}
-          />
-        </>
-      ) : (
-        <>
-          <QRCodeDisplay
-            value={activeSession.qrCode}
-            sessionName={activeSession.sessionName}
-            time={activeSession.time}
-            role="staff"
-          />
-          <Text style={[styles.attendanceCount, { color: colors.staff.textSecondary }]}>
-            {getSessionRecords(activeSession.id).length} students marked present
-          </Text>
-          <Button
-            title="End Session"
-            onPress={handleDeactivateSession}
-            variant="secondary"
-            role="staff"
-            textColor={colors.common.white}
-            style={{ marginTop: spacing.md, backgroundColor: '#EF4444' }}
-          />
-        </>
-      )}
-    </View>
-  );
+  const renderQRView = () => {
+    const sessionRecords = activeSession ? getSessionRecords(activeSession.id) : [];
+    const presentCount = sessionRecords.length;
+    const remainingCount = Math.max(0, classTotalStudents - presentCount);
+
+    return (
+      <View style={styles.section}>
+        {!activeSession ? (
+          <>
+            <Text style={[styles.sectionTitle, { color: colors.staff.text }]}>
+              Generate QR Code
+            </Text>
+            <Input
+              label="Session Name"
+              value={sessionName}
+              onChangeText={setSessionName}
+              placeholder="e.g., Morning Class - Math"
+              role="staff"
+            />
+            <View style={styles.pickerContainer}>
+              <Text style={[styles.label, { color: colors.staff.text }]}>Select Class</Text>
+              <View style={styles.classGrid}>
+                {availableClasses.length === 0 ? (
+                  <Text style={styles.emptyText}>No classes found. Create one in Class Management.</Text>
+                ) : (
+                  availableClasses.map((item) => (
+                    <Pressable
+                      key={item.id}
+                      onPress={() => setSelectedClass(item.className)}
+                      style={[
+                        styles.classSelectItem,
+                        selectedClass === item.className && {
+                          backgroundColor: colors.staff.surfaceLight,
+                          borderColor: colors.staff.primary,
+                        },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.classSelectText,
+                          {
+                            color:
+                              selectedClass === item.className
+                                ? colors.staff.primary
+                                : colors.staff.text,
+                          },
+                        ]}
+                      >
+                        {item.className}
+                      </Text>
+                      {selectedClass === item.className && (
+                        <MaterialIcons name="check-circle" size={16} color={colors.staff.primary} />
+                      )}
+                    </Pressable>
+                  ))
+                )}
+              </View>
+            </View>
+            <Button
+              title="Generate QR Code"
+              onPress={handleCreateSession}
+              role="staff"
+              style={{ marginTop: spacing.md }}
+              disabled={availableClasses.length === 0}
+            />
+          </>
+        ) : (
+          <>
+            <QRCodeDisplay
+              value={activeSession.qrCode}
+              sessionName={activeSession.sessionName}
+              time={activeSession.time}
+              role="staff"
+            />
+            <View style={styles.statBox}>
+              <View style={styles.statItem}>
+                <Text style={[styles.statValue, { color: colors.staff.primary }]}>{classTotalStudents}</Text>
+                <Text style={[styles.statLabel, { color: colors.staff.textSecondary }]}>Total Students</Text>
+              </View>
+              <View style={[styles.statItem, styles.statDivider]}>
+                <Text style={[styles.statValue, { color: '#10B981' }]}>{presentCount}</Text>
+                <Text style={[styles.statLabel, { color: colors.staff.textSecondary }]}>Present</Text>
+              </View>
+              <View style={styles.statItem}>
+                <Text style={[styles.statValue, { color: '#EF4444' }]}>{remainingCount}</Text>
+                <Text style={[styles.statLabel, { color: colors.staff.textSecondary }]}>Remaining</Text>
+              </View>
+            </View>
+
+            <Button
+              title="End Session"
+              onPress={handleDeactivateSession}
+              variant="secondary"
+              role="staff"
+              textColor={colors.common.white}
+              style={{ marginTop: spacing.md, backgroundColor: '#EF4444' }}
+            />
+          </>
+        )}
+
+        <Modal
+          visible={showEndSessionSummary}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setShowEndSessionSummary(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={[styles.modalContent, { backgroundColor: colors.common.white }]}>
+              <View style={styles.modalHeader}>
+                <Text style={[styles.modalTitle, { color: colors.staff.text }]}>Session Summary</Text>
+                <Pressable onPress={() => setShowEndSessionSummary(false)}>
+                  <MaterialIcons name="close" size={24} color={colors.staff.text} />
+                </Pressable>
+              </View>
+              <View style={styles.modalBody}>
+                {lastEndedSessionAbsentees.length === 0 ? (
+                  <View style={styles.allPresentContainer}>
+                    <MaterialIcons name="check-circle" size={64} color="#10B981" />
+                    <Text style={[styles.allPresentText, { color: colors.staff.text }]}>All students are present!</Text>
+                  </View>
+                ) : (
+                  <>
+                    <Text style={[styles.absenteeCountText, { color: colors.staff.textSecondary }]}>
+                      {lastEndedSessionAbsentees.length} students were absent
+                    </Text>
+                    <FlatList
+                      data={lastEndedSessionAbsentees}
+                      keyExtractor={(item) => item.studentId}
+                      style={{ maxHeight: 300, marginTop: spacing.md }}
+                      renderItem={({ item }) => (
+                        <View style={styles.absenteeItem}>
+                          <View style={styles.absenteeIcon}>
+                            <MaterialIcons name="person" size={20} color="#EF4444" />
+                          </View>
+                          <View style={{ flex: 1, marginLeft: spacing.sm }}>
+                            <Text style={[styles.absenteeName, { color: colors.staff.text }]}>{item.studentName}</Text>
+                            <Text style={[styles.absenteeDetails, { color: colors.staff.textSecondary }]}>Roll: {item.rollNumber}</Text>
+                          </View>
+                        </View>
+                      )}
+                    />
+                  </>
+                )}
+                <Button
+                  title="Close"
+                  onPress={() => setShowEndSessionSummary(false)}
+                  role="staff"
+                  style={{ marginTop: spacing.xl }}
+                />
+              </View>
+            </View>
+          </View>
+        </Modal>
+      </View>
+    );
+  };
 
   const renderAttendanceView = () => {
     const displayRecords =
@@ -804,9 +957,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.staff.primary + '15', // Subtle primary tint
   },
   tabText: {
-    fontSize: 10,
+    ...typography.bodySmall,
     fontWeight: '600',
-    letterSpacing: 0.2,
+    marginLeft: spacing.xs,
   },
   section: {
     marginBottom: spacing.xl,
@@ -814,6 +967,53 @@ const styles = StyleSheet.create({
   sectionTitle: {
     ...typography.h2,
     marginBottom: spacing.md,
+  },
+  classGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+    marginTop: spacing.xs,
+  },
+  classSelectItem: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.common.gray200,
+    backgroundColor: colors.common.white,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  classSelectText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  statBox: {
+    flexDirection: 'row',
+    backgroundColor: colors.staff.surface,
+    borderRadius: borderRadius.lg,
+    padding: spacing.md,
+    marginTop: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.staff.border,
+  },
+  statItem: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  statDivider: {
+    borderLeftWidth: 1,
+    borderRightWidth: 1,
+    borderColor: colors.staff.border,
+  },
+  statValue: {
+    fontSize: 24,
+    fontWeight: '700',
+  },
+  statLabel: {
+    fontSize: 12,
+    marginTop: 2,
   },
   attendanceCount: {
     ...typography.body,
@@ -943,5 +1143,66 @@ const styles = StyleSheet.create({
     ...typography.body,
     textAlign: 'center',
     lineHeight: 22,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: spacing.xl,
+  },
+  modalContent: {
+    width: '100%',
+    borderRadius: borderRadius.xl,
+    padding: spacing.lg,
+    ...shadows.lg,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.lg,
+  },
+  modalTitle: {
+    ...typography.h3,
+    fontWeight: '700',
+  },
+  modalBody: {
+    paddingBottom: spacing.md,
+  },
+  allPresentContainer: {
+    alignItems: 'center',
+    paddingVertical: spacing.xl,
+  },
+  allPresentText: {
+    fontSize: 18,
+    fontWeight: '600',
+    marginTop: spacing.md,
+  },
+  absenteeCountText: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  absenteeItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.common.gray100,
+  },
+  absenteeIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#FEF2F2',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  absenteeName: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  absenteeDetails: {
+    fontSize: 12,
   },
 });

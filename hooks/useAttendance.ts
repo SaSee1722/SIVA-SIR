@@ -44,8 +44,8 @@ export function useAttendance() {
     };
   }, []);
 
-  const createSession = async (sessionName: string, createdBy: string) => {
-    const newSession = await attendanceService.createSession(sessionName, createdBy);
+  const createSession = async (sessionName: string, createdBy: string, classFilter?: string) => {
+    const newSession = await attendanceService.createSession(sessionName, createdBy, classFilter);
     setSessions(prev => [newSession, ...prev]);
     return newSession;
   };

@@ -5,7 +5,8 @@ import { RealtimeChannel } from '@supabase/supabase-js';
 export const attendanceService = {
   async createSession(
     sessionName: string,
-    createdBy: string
+    createdBy: string,
+    classFilter?: string
   ): Promise<AttendanceSession> {
     const supabase = getSharedSupabaseClient();
 
@@ -20,6 +21,7 @@ export const attendanceService = {
       qr_code: `SESSION_${Date.now()}`,
       created_by: createdBy,
       is_active: true,
+      class_filter: classFilter,
     };
 
     const { data, error } = await supabase
@@ -38,6 +40,7 @@ export const attendanceService = {
       qrCode: data.qr_code,
       createdBy: data.created_by,
       isActive: data.is_active,
+      classFilter: data.class_filter,
     };
   },
 
@@ -58,6 +61,7 @@ export const attendanceService = {
       qrCode: s.qr_code,
       createdBy: s.created_by,
       isActive: s.is_active,
+      classFilter: s.class_filter,
     }));
   },
 
@@ -83,6 +87,7 @@ export const attendanceService = {
       qrCode: data.qr_code,
       createdBy: data.created_by,
       isActive: data.is_active,
+      classFilter: data.class_filter,
     };
   },
 
@@ -267,7 +272,7 @@ export const attendanceService = {
       .eq('role', 'student');
 
     if (className) {
-      query = query.eq('class', className);
+      query = query.ilike('class', `%${className}%`);
     }
 
     const { data: allStudents, error: studentsError } = await query;
