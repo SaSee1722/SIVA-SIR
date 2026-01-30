@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useCallback, ReactNode } from 'react';
-import { Text, StyleSheet, Animated, Dimensions, Platform } from 'react-native';
+import { Text, StyleSheet, Animated, Platform } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { typography, spacing, borderRadius, shadows } from '@/constants/theme';
 
@@ -17,8 +17,6 @@ interface ToastContextType {
 
 const ToastContext = createContext<ToastContextType | undefined>(undefined);
 
-const { width } = Dimensions.get('window');
-// width is used for platform calculation if needed later
 
 export function ToastProvider({ children }: { children: ReactNode }) {
     const [toast, setToast] = useState<ToastOptions | null>(null);

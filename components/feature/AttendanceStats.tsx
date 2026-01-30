@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { colors, typography, borderRadius, spacing, shadows } from '@/constants/theme';
+import { colors, borderRadius, spacing, shadows } from '@/constants/theme';
 
 interface AttendanceStatsProps {
   totalSessions: number;

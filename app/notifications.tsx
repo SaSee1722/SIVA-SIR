@@ -113,7 +113,7 @@ export default function NotificationsScreen() {
                                 </View>
                                 <Text style={styles.emptyTitle}>No notifications yet</Text>
                                 <Text style={styles.emptySubtitle}>
-                                    We'll notify you when session activities occur.
+                                    We&apos;ll notify you when session activities occur.
                                 </Text>
                             </View>
                         }

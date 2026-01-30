@@ -1,5 +1,5 @@
 import { getSharedSupabaseClient } from '@/template/core/client';
-import { User, StudentProfile, StaffProfile } from '@/types';
+import { User } from '@/types';
 
 export const authService = {
   async signup(
