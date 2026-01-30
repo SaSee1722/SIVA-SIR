@@ -12,7 +12,7 @@ workflows:
       groups:
         - VAR 
       vars:
-        PACKAGE_NAME: "com.ssabee1722.onspaceapp"
+        PACKAGE_NAME: "com.ssabee1722.eduportalapp"
 
     scripts:
       - name: Create .env file
