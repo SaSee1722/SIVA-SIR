@@ -57,6 +57,14 @@ workflows:
           fi
 
           # 2. Enable ProGuard/R8 for massive size reduction (from 200MB+ to ~20MB)
+          if [ -f "$GRADLE_FILE" ]; then
+            # Ensure minifyEnabled is true for release
+            sed -i '' 's/minifyEnabled false/minifyEnabled true/g' "$GRADLE_FILE"
+            # Ensure shrinkResources is true for release
+            sed -i '' 's/shrinkResources false/shrinkResources true/g' "$GRADLE_FILE"
+            echo "Minification and ShrinkResources enforced in build.gradle"
+          fi
+
           PROPS_FILE="android/gradle.properties"
           echo "android.enableProguardInReleaseBuilds=true" >> "$PROPS_FILE"
           echo "android.enableShrinkResourcesInReleaseBuilds=true" >> "$PROPS_FILE"
