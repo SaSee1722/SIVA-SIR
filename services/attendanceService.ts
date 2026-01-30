@@ -49,15 +49,14 @@ export const attendanceService = {
       try {
         const { data: students } = await supabase
           .from('profiles')
-          .select('id, push_token')
+          .select('id')
           .eq('role', 'student')
           .ilike('class', `%${classFilter}%`);
 
         if (students && students.length > 0) {
           const studentIds = students.map(s => s.id);
-          const pushTokens = students.map(s => s.push_token).filter(Boolean) as string[];
 
-          // 1. Send in-app internal record
+          // Create in-app internal records (The Database Trigger will handle the Push Notification)
           await notificationService.sendBulkNotifications(
             studentIds,
             'New Session Created',
@@ -65,15 +64,6 @@ export const attendanceService = {
             'session_created',
             { sessionId: session.id }
           );
-
-          // 2. Send SYSTEM push notification
-          if (pushTokens.length > 0) {
-            await notificationService.sendPushNotification(
-              pushTokens,
-              'New Session Created',
-              `A new session "${sessionName}" has been created for your class.`
-            );
-          }
         }
       } catch (notifyError) {
         console.error('Error sending session creation notifications:', notifyError);
@@ -154,15 +144,7 @@ export const attendanceService = {
         if (absentees && absentees.length > 0) {
           const absenteeIds = absentees.map(a => a.studentId);
 
-          // Fetch their push tokens
-          const { data: profiles } = await supabase
-            .from('profiles')
-            .select('id, push_token')
-            .in('id', absenteeIds);
-
-          const pushTokens = (profiles || []).map(p => p.push_token).filter(Boolean) as string[];
-
-          // 1. Send in-app internal record
+          // Create in-app internal records (The Database Trigger will handle the Push Notification)
           await notificationService.sendBulkNotifications(
             absenteeIds,
             'Absent Alert',
@@ -170,15 +152,6 @@ export const attendanceService = {
             'absent',
             { sessionId }
           );
-
-          // 2. Send SYSTEM push notification
-          if (pushTokens.length > 0) {
-            await notificationService.sendPushNotification(
-              pushTokens,
-              'Absent Alert',
-              `You are absent to this session: "${sessionData.session_name}".`
-            );
-          }
         }
       } catch (notifyError) {
         console.error('Error sending absent notifications:', notifyError);
@@ -472,4 +445,3 @@ export const attendanceService = {
       .subscribe();
   },
 };
-
