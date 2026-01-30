@@ -56,7 +56,7 @@ export default function StaffSignupScreen() {
   return (
     <Screen role="staff">
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={styles.container}
       >
         <View style={styles.content}>
@@ -132,7 +132,7 @@ export default function StaffSignupScreen() {
 
 const styles = StyleSheet.create({
   container: {
-    // flex: 1 removed to allow proper scrolling within Screen (ScrollView)
+    flex: 1,
   },
   content: {
     padding: spacing.xl,
@@ -151,7 +151,7 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs,
   },
   form: {
-    paddingBottom: spacing.xl,
+    paddingBottom: spacing.xxl * 2,
   },
   linkButton: {
     marginTop: spacing.lg,

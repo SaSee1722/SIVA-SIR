@@ -114,8 +114,9 @@ export default function StudentSignupScreen() {
   return (
     <Screen role="student">
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={styles.container}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
       >
         <View style={styles.content}>
           <Pressable onPress={() => router.back()} style={styles.backButton} hitSlop={8}>
@@ -376,7 +377,7 @@ export default function StudentSignupScreen() {
 
 const styles = StyleSheet.create({
   container: {
-    // flex: 1 removed to allow proper scrolling within Screen (ScrollView)
+    flex: 1,
   },
   content: {
     padding: spacing.xl,
@@ -395,7 +396,7 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs,
   },
   form: {
-    paddingBottom: spacing.xl,
+    paddingBottom: spacing.xxl * 2,
   },
   label: {
     ...typography.bodySmall,
