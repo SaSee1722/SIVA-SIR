@@ -1,0 +1,29 @@
+{
+    "project_info": {
+        "project_number": "100864198355",
+        "project_id": "siva-sir",
+        "storage_bucket": "siva-sir.firebasestorage.app"
+    },
+    "client": [
+        {
+            "client_info": {
+                "mobilesdk_app_id": "1:100864198355:android:964e83a6854e14683c3626",
+                "android_client_info": {
+                    "package_name": "com.ssabee1722.eduportalapp"
+                }
+            },
+            "oauth_client": [],
+            "api_key": [
+                {
+                    "current_key": "AIzaSyDbMeoi_-_UXG9z2936N7U0Ot65SiU8SUc"
+                }
+            ],
+            "services": {
+                "appinvite_service": {
+                    "other_platform_oauth_client": []
+                }
+            }
+        }
+    ],
+    "configuration_version": "1"
+}

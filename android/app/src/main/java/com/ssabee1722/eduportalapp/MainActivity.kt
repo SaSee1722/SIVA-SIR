@@ -1,4 +1,4 @@
-package com.ssabee1722.onspaceapp
+package com.ssabee1722.eduportalapp
 import expo.modules.splashscreen.SplashScreenManager
 
 import android.os.Build

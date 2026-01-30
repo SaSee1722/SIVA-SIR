@@ -10,21 +10,24 @@ import { Screen } from '@/components/layout/Screen';
 import { FileUploader } from '@/components/feature/FileUploader';
 import { FileList } from '@/components/feature/FileList';
 import { AttendanceStats } from '@/components/feature/AttendanceStats';
+import { useNotifications } from '@/hooks/useNotifications';
 import { StudentProfile, User, Class } from '@/types';
 import { colors, typography, borderRadius, spacing, shadows } from '@/constants/theme';
 import { useAlert } from '@/template';
 import { useToast } from '@/components/ui/Toast';
-import * as FileSystem from 'expo-file-system';
 import { StaffSelector } from '@/components/feature/StaffSelector';
 import { classService } from '@/services/classService';
+import { notificationService } from '@/services/notificationService';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import * as FileSystem from 'expo-file-system';
 
 export default function StudentDashboardScreen() {
   const { user, logout, updateProfile } = useAuth();
   const studentProfile = user as StudentProfile;
   const { files, uploadFile, deleteFile, refresh: refreshFiles } = useFiles(user?.id);
   const { records, sessions, refresh: refreshAttendance } = useAttendance();
+  const { unreadCount, refresh: refreshNotifications } = useNotifications(user?.id);
   const router = useRouter();
   const { showAlert } = useAlert();
   const { showToast } = useToast();
@@ -50,7 +53,7 @@ export default function StudentDashboardScreen() {
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    await Promise.all([refreshFiles(), refreshAttendance()]);
+    await Promise.all([refreshFiles(), refreshAttendance(), refreshNotifications()]);
     setRefreshing(false);
   };
 
@@ -62,6 +65,12 @@ export default function StudentDashboardScreen() {
       console.error('Error loading classes:', error);
     }
   }, []);
+
+  useEffect(() => {
+    if (user?.id) {
+      notificationService.registerForPushNotificationsAsync(user.id);
+    }
+  }, [user?.id]);
 
   useEffect(() => {
     if (showEditModal) {
@@ -241,9 +250,25 @@ export default function StudentDashboardScreen() {
                 </View>
               </View>
             </View>
-            <Pressable onPress={handleLogout} style={styles.logoutButton} hitSlop={8}>
-              <MaterialIcons name="logout" size={24} color={colors.common.white} />
-            </Pressable>
+            <View style={styles.headerActions}>
+              <Pressable
+                onPress={() => router.push('/notifications')}
+                style={styles.notificationIcon}
+                hitSlop={8}
+              >
+                <MaterialIcons name="notifications" size={24} color={colors.common.white} />
+                {unreadCount > 0 && (
+                  <View style={styles.notificationBadge}>
+                    <Text style={styles.notificationBadgeText}>
+                      {unreadCount > 9 ? '9+' : unreadCount}
+                    </Text>
+                  </View>
+                )}
+              </Pressable>
+              <Pressable onPress={handleLogout} style={styles.logoutButton} hitSlop={8}>
+                <MaterialIcons name="logout" size={24} color={colors.common.white} />
+              </Pressable>
+            </View>
           </View>
         </LinearGradient>
 
@@ -619,6 +644,39 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.2)',
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  notificationIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'relative',
+  },
+  notificationBadge: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    backgroundColor: '#EF4444',
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 4,
+    borderWidth: 1.5,
+    borderColor: '#3B82F6', // Border color matching gradient
+  },
+  notificationBadgeText: {
+    color: colors.common.white,
+    fontSize: 10,
+    fontWeight: '700',
   },
   quickActions: {
     marginBottom: spacing.lg,

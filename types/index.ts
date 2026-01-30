@@ -73,3 +73,16 @@ export interface AttendanceRecord {
   markedAt: string;
   date: string;
 }
+
+export type NotificationType = 'session_created' | 'absent' | 'general';
+
+export interface Notification {
+  id: string;
+  userId: string;
+  title: string;
+  message: string;
+  type: NotificationType;
+  isRead: boolean;
+  createdAt: string;
+  metadata?: any;
+}

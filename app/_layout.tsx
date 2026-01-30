@@ -5,6 +5,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { AlertProvider } from '@/template';
 import { ToastProvider } from '@/components/ui/Toast';
+import * as Notifications from 'expo-notifications';
 
 import { ProfessionalSplashScreen } from '@/components/ui/ProfessionalSplashScreen';
 
@@ -29,6 +30,12 @@ export default function RootLayout() {
     async function prepare() {
       try {
         // Pre-load resources
+        const { status: existingStatus } = await Notifications.getPermissionsAsync();
+        let finalStatus = existingStatus;
+        if (existingStatus !== 'granted') {
+          const { status } = await Notifications.requestPermissionsAsync();
+          finalStatus = status;
+        }
       } catch (e) {
         console.warn(e);
       } finally {
@@ -63,6 +70,7 @@ export default function RootLayout() {
                 <Stack.Screen name="student-dashboard" />
                 <Stack.Screen name="staff-dashboard" />
                 <Stack.Screen name="qr-scanner" options={{ presentation: 'modal' }} />
+                <Stack.Screen name="notifications" />
               </Stack>
             )}
           </AuthProvider>

@@ -1,4 +1,4 @@
-package com.ssabee1722.onspaceapp
+package com.ssabee1722.eduportalapp
 
 import android.app.Application
 import android.content.res.Configuration
