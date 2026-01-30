@@ -65,6 +65,16 @@ workflows:
             echo "Minification and ShrinkResources enforced directly in build.gradle"
           fi
 
+          # 3. Add Stripe ProGuard rules to fix R8 missing classes error
+          PROGUARD_FILE="android/app/proguard-rules.pro"
+          if [ -f "$PROGUARD_FILE" ]; then
+            echo "" >> "$PROGUARD_FILE"
+            echo "# Stripe ProGuard Rules" >> "$PROGUARD_FILE"
+            echo "-dontwarn com.stripe.android.pushProvisioning.**" >> "$PROGUARD_FILE"
+            echo "-keep class com.stripe.android.pushProvisioning.** { *; }" >> "$PROGUARD_FILE"
+            echo "Stripe ProGuard rules added"
+          fi
+
           PROPS_FILE="android/gradle.properties"
           echo "android.enableProguardInReleaseBuilds=true" >> "$PROPS_FILE"
           echo "android.enableShrinkResourcesInReleaseBuilds=true" >> "$PROPS_FILE"
