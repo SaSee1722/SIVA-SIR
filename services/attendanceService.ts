@@ -433,14 +433,20 @@ export const attendanceService = {
   async getAbsenteesByClass(className: string, startDate?: string, endDate?: string): Promise<any> {
     const supabase = getSharedSupabaseClient();
 
-    // Get all students in the class
-    const { data: allStudents, error: studentsError } = await supabase
+    // Get all students (filter in JS for multi-class precision)
+    const { data: allStudentsData, error: studentsError } = await supabase
       .from('profiles')
       .select('id, name, roll_number, class')
-      .eq('role', 'student')
-      .eq('class', className);
+      .eq('role', 'student');
 
     if (studentsError) throw studentsError;
+
+    // Filter students precisely
+    const allStudents = (allStudentsData || []).filter(student => {
+      if (!student.class) return false;
+      const studentClasses = student.class.split(',').map((c: string) => c.trim());
+      return studentClasses.includes(className);
+    });
 
     // Get all sessions in the date range (or all sessions)
     let sessionsQuery = supabase

@@ -145,7 +145,8 @@ export default function StaffDashboardScreen() {
 
       if (reportType === 'Session' && selectedSessionId) {
         // For session reports, get absentees for that specific session
-        absentRecords = await attendanceService.getAbsenteesBySession(selectedSessionId);
+        const session = sessions.find(s => s.id === selectedSessionId);
+        absentRecords = await attendanceService.getAbsenteesBySession(selectedSessionId, session?.classFilter);
         totalStudents = displayRecords.length + absentRecords.length;
       } else {
         // For "All" or "Date Range" reports, we can't easily determine absentees
@@ -308,7 +309,8 @@ export default function StaffDashboardScreen() {
       const sessionRecords = getSessionRecords(sessionId);
 
       // Fetch absent students for this session
-      const absentRecords = await attendanceService.getAbsenteesBySession(sessionId);
+      const session = sessions.find(s => s.id === sessionId);
+      const absentRecords = await attendanceService.getAbsenteesBySession(sessionId, session?.classFilter);
       const totalStudents = sessionRecords.length + absentRecords.length;
 
       if (sessionRecords.length === 0 && absentRecords.length === 0) {
@@ -371,7 +373,8 @@ export default function StaffDashboardScreen() {
     setFilteredRecords(sessionRecs);
 
     try {
-      const absentees = await attendanceService.getAbsenteesBySession(sessionId);
+      const session = sessions.find(s => s.id === sessionId);
+      const absentees = await attendanceService.getAbsenteesBySession(sessionId, session?.classFilter);
       setAbsentStudents(absentees);
     } catch (error) {
       console.error('Error fetching absentees:', error);
