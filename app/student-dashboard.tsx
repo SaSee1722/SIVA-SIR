@@ -75,9 +75,9 @@ export default function StudentDashboardScreen() {
   useEffect(() => {
     if (showEditModal) {
       loadAllClasses();
-      setEditYear(studentProfile.year || '');
-      setEditClasses(studentProfile.class ? studentProfile.class.split(',').map(s => s.trim()) : []);
-      setEditSystemNumber(studentProfile.systemNumber || '');
+      setEditYear(studentProfile?.year || '');
+      setEditClasses(studentProfile?.class ? studentProfile.class.split(',').map(s => s.trim()) : []);
+      setEditSystemNumber(studentProfile?.systemNumber || '');
     }
   }, [showEditModal, studentProfile, loadAllClasses]);
 
@@ -193,8 +193,8 @@ export default function StudentDashboardScreen() {
 
   // Filter data based on current classes
   const studentClasses = useMemo(() =>
-    studentProfile.class ? studentProfile.class.split(',').map(s => s.trim()) : []
-    , [studentProfile.class]);
+    studentProfile?.class ? studentProfile.class.split(',').map(s => s.trim()) : []
+    , [studentProfile?.class]);
 
   const relevantSessions = useMemo(() =>
     sessions.filter(s => s.classFilter && studentClasses.includes(s.classFilter))
@@ -242,12 +242,12 @@ export default function StudentDashboardScreen() {
             <View style={styles.headerLeft}>
               <View style={styles.avatarCircle}>
                 <Text style={styles.avatarText}>
-                  {studentProfile.name.charAt(0).toUpperCase()}
+                  {studentProfile?.name?.charAt(0).toUpperCase() || 'S'}
                 </Text>
               </View>
               <View style={styles.headerInfo}>
                 <View style={styles.nameRow}>
-                  <Text style={styles.name}>{studentProfile.name}</Text>
+                  <Text style={styles.name}>{studentProfile?.name}</Text>
                   <Pressable
                     onPress={() => setShowEditModal(true)}
                     style={styles.editProfileButton}
@@ -258,16 +258,16 @@ export default function StudentDashboardScreen() {
                 <Text style={styles.greeting}>Welcome back, student</Text>
                 <View style={styles.badgeContainer}>
                   <View style={styles.badge}>
-                    <Text style={styles.badgeText}>{studentProfile.class || 'No Class'}</Text>
+                    <Text style={styles.badgeText}>{studentProfile?.class || 'No Class'}</Text>
                   </View>
                   <View style={styles.badge}>
-                    <Text style={styles.badgeText}>{studentProfile.year || 'No Year'}</Text>
+                    <Text style={styles.badgeText}>{studentProfile?.year || 'No Year'}</Text>
                   </View>
                   <View style={styles.badge}>
-                    <Text style={styles.badgeText}>Roll: {studentProfile.rollNumber}</Text>
+                    <Text style={styles.badgeText}>Roll: {studentProfile?.rollNumber}</Text>
                   </View>
                   <View style={styles.badge}>
-                    <Text style={styles.badgeText}>System: {studentProfile.systemNumber || 'N/A'}</Text>
+                    <Text style={styles.badgeText}>System: {studentProfile?.systemNumber || 'N/A'}</Text>
                   </View>
                 </View>
               </View>
