@@ -5,7 +5,7 @@ import { authService } from '@/services/authService';
 interface AuthContextType {
   user: User | null;
   isLoading: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string, role?: 'student' | 'staff') => Promise<void>;
   signup: (email: string, password: string, role: 'student' | 'staff', additionalData: any) => Promise<void>;
   logout: () => Promise<void>;
   updateProfile: (updates: Partial<User>) => Promise<void>;
@@ -63,8 +63,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const login = async (email: string, password: string) => {
-    const loggedInUser = await authService.login(email, password);
+  const login = async (email: string, password: string, role?: 'student' | 'staff') => {
+    const loggedInUser = await authService.login(email, password, role);
     setUser(loggedInUser);
   };
 

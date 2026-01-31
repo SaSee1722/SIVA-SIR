@@ -25,7 +25,7 @@ export default function StudentLoginScreen() {
 
     setLoading(true);
     try {
-      await login(email, password);
+      await login(email, password, 'student');
       router.replace('/student-dashboard');
     } catch (error: any) {
       showAlert('Login Failed', error.message || 'Invalid credentials');

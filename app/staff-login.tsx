@@ -25,7 +25,7 @@ export default function StaffLoginScreen() {
 
     setLoading(true);
     try {
-      await login(email, password);
+      await login(email, password, 'staff');
       router.replace('/staff-dashboard');
     } catch (error: any) {
       showAlert('Login Failed', error.message || 'Invalid credentials');

@@ -47,7 +47,7 @@ export const authService = {
     } as User;
   },
 
-  async login(email: string, password: string): Promise<User> {
+  async login(email: string, password: string, expectedRole?: 'student' | 'staff'): Promise<User> {
     const supabase = getSharedSupabaseClient();
 
     console.log('[AuthService] Attempting login for:', email);
@@ -68,6 +68,13 @@ export const authService = {
     console.log('[AuthService] Login successful, fetching profile for:', data.user.id);
     const user = await this.getUserProfile(data.user.id, data.user);
     if (!user) throw new Error('Profile not found');
+
+    // Check if the role matches the expected role for this portal
+    if (expectedRole && user.role !== expectedRole) {
+      console.warn(`[AuthService] Role mismatch: Expected ${expectedRole}, found ${user.role}. Logging out.`);
+      await this.logout();
+      throw new Error(`You are in the wrong portal. Please use the ${user.role === 'staff' ? 'Staff' : 'Student'} Login page.`);
+    }
 
     return user;
   },
