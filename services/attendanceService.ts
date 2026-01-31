@@ -47,6 +47,15 @@ export const attendanceService = {
     // Send notifications to students in the class
     if (classFilter) {
       try {
+        // Fetch creator name for the notification
+        const { data: creator } = await supabase
+          .from('profiles')
+          .select('name')
+          .eq('id', createdBy)
+          .single();
+
+        const staffName = creator?.name || 'Staff';
+
         const { data: students } = await supabase
           .from('profiles')
           .select('id')
@@ -56,13 +65,16 @@ export const attendanceService = {
         if (students && students.length > 0) {
           const studentIds = students.map(s => s.id);
 
-          // Create in-app internal records (The Database Trigger will handle the Push Notification)
+          // Create in-app internal records
           await notificationService.sendBulkNotifications(
             studentIds,
-            'New Session Created',
-            `A new session "${sessionName}" has been created for your class.`,
+            'New Session Started',
+            `${staffName} created a new session "${sessionName}". Click to scan and join!`,
             'session_created',
-            { sessionId: session.id }
+            {
+              sessionId: session.id,
+              action: 'join_session'
+            }
           );
         }
       } catch (notifyError) {
@@ -222,6 +234,64 @@ export const attendanceService = {
     const { data, error } = await supabase
       .from('attendance_records')
       .select('*')
+      .order('marked_at', { ascending: false });
+
+    if (error) throw error;
+
+    return (data || []).map(r => ({
+      id: r.id,
+      sessionId: r.session_id,
+      sessionName: r.session_name,
+      studentId: r.student_id,
+      studentName: r.student_name,
+      rollNumber: r.roll_number,
+      systemNumber: r.system_number,
+      class: r.class,
+      markedAt: r.marked_at,
+      date: r.date,
+    }));
+  },
+
+  async getSessionsByStaff(staffId: string): Promise<AttendanceSession[]> {
+    const supabase = getSharedSupabaseClient();
+    const { data, error } = await supabase
+      .from('attendance_sessions')
+      .select('*')
+      .eq('created_by', staffId)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+
+    return (data || []).map(s => ({
+      id: s.id,
+      sessionName: s.session_name,
+      date: s.date,
+      time: s.time,
+      qrCode: s.qr_code,
+      createdBy: s.created_by,
+      isActive: s.is_active,
+      classFilter: s.class_filter,
+    }));
+  },
+
+  async getRecordsByStaff(staffId: string): Promise<AttendanceRecord[]> {
+    const supabase = getSharedSupabaseClient();
+
+    // First get all session IDs for this staff
+    const { data: sessions, error: sessionError } = await supabase
+      .from('attendance_sessions')
+      .select('id')
+      .eq('created_by', staffId);
+
+    if (sessionError) throw sessionError;
+    if (!sessions || sessions.length === 0) return [];
+
+    const sessionIds = sessions.map(s => s.id);
+
+    const { data, error } = await supabase
+      .from('attendance_records')
+      .select('*')
+      .in('session_id', sessionIds)
       .order('marked_at', { ascending: false });
 
     if (error) throw error;

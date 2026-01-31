@@ -132,17 +132,26 @@ export const classService = {
         };
     },
 
-    // Delete (deactivate) a class
+    // Delete a class
     async deleteClass(classId: string, className: string): Promise<void> {
         const supabase = getSharedSupabaseClient();
 
-        // 1. Remove this class from all student profiles
-        await this.removeClassFromStudents(className);
+        // 1. Attempt to remove this class from student profiles
+        // We wrap this in a try-catch because staff might not have RLS permission 
+        // to update all student profiles, and we don't want it to block the class deletion.
+        try {
+            await this.removeClassFromStudents(className);
+        } catch (error) {
+            console.warn('Note: Could not scrub class name from student profiles:', error);
+        }
 
-        // 2. Soft delete the class by setting is_active to false
+        // 2. Perform a hard delete
+        // Using .delete() instead of .update({ is_active: false }) to avoid 
+        // "new row violates RLS policy" errors which occur when a policy 
+        // requires rows to remain 'active' during updates.
         const { error } = await supabase
             .from('classes')
-            .update({ is_active: false })
+            .delete()
             .eq('id', classId);
 
         if (error) throw error;

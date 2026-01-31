@@ -66,12 +66,8 @@ export default function StudentSignupScreen() {
     setShowYearPicker(false);
   };
 
-  const handleClassToggle = (className: string) => {
-    setSelectedClasses(prev =>
-      prev.includes(className)
-        ? prev.filter(c => c !== className)
-        : [...prev, className]
-    );
+  const handleClassSelect = (className: string) => {
+    setSelectedClasses([className]);
   };
 
   const handleSignup = async () => {
@@ -221,8 +217,8 @@ export default function StudentSignupScreen() {
                   { color: selectedClasses.length > 0 ? colors.student.text : colors.student.textSecondary }
                 ]}>
                   {selectedClasses.length > 0
-                    ? selectedClasses.join(', ')
-                    : (year ? 'Select your section(s)' : 'Select year first')}
+                    ? selectedClasses[0]
+                    : (year ? 'Select your section' : 'Select year first')}
                 </Text>
                 <MaterialIcons name="arrow-drop-down" size={24} color={colors.student.textSecondary} />
               </Pressable>
@@ -319,7 +315,7 @@ export default function StudentSignupScreen() {
             <View style={[styles.modalContent, { backgroundColor: colors.student.background }]}>
               <View style={styles.modalHeader}>
                 <Text style={[styles.modalTitle, { color: colors.student.text }]}>
-                  Select Section(s) ({year})
+                  Select Section ({year})
                 </Text>
                 <Pressable onPress={() => setShowClassPicker(false)} hitSlop={8}>
                   <MaterialIcons name="close" size={24} color={colors.student.text} />
@@ -333,7 +329,7 @@ export default function StudentSignupScreen() {
                   const isSelected = selectedClasses.includes(item.className);
                   return (
                     <Pressable
-                      onPress={() => handleClassToggle(item.className)}
+                      onPress={() => handleClassSelect(item.className)}
                       style={[
                         styles.classItem,
                         {
@@ -361,7 +357,7 @@ export default function StudentSignupScreen() {
               />
               <View style={styles.modalFooter}>
                 <Button
-                  title={selectedClasses.length > 0 ? `Selected ${selectedClasses.length} Classes` : "Select Classes"}
+                  title={selectedClasses.length > 0 ? "Confirm Selection" : "Select Section"}
                   onPress={() => setShowClassPicker(false)}
                   role="student"
                   disabled={selectedClasses.length === 0}

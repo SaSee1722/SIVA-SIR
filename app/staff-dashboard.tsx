@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Pressable, FlatList, RefreshControl, Modal } from 'react-native';
+import { View, Text, StyleSheet, Pressable, FlatList, RefreshControl, Modal, TextInput } from 'react-native';
+import { getSharedSupabaseClient } from '@/template/core/client';
 import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useAuth } from '@/hooks/useAuth';
@@ -22,7 +23,7 @@ import { classService } from '@/services/classService';
 import { Class } from '@/types';
 
 type ViewMode = 'files' | 'qr' | 'attendance' | 'classes';
-type AttendanceViewMode = 'all' | 'session' | 'date-range';
+type AttendanceViewMode = 'session' | 'date-range';
 
 export default function StaffDashboardScreen() {
   const { user, logout } = useAuth();
@@ -35,12 +36,12 @@ export default function StaffDashboardScreen() {
     getSessionRecords,
     getDateRangeRecords,
     refresh: refreshAttendance,
-  } = useAttendance();
+  } = useAttendance(user?.id);
   const router = useRouter();
   const { showAlert } = useAlert();
 
   const [viewMode, setViewMode] = useState<ViewMode>('files');
-  const [attendanceViewMode, setAttendanceViewMode] = useState<AttendanceViewMode>('all');
+  const [attendanceViewMode, setAttendanceViewMode] = useState<AttendanceViewMode>('session');
   const [sessionName, setSessionName] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
@@ -50,11 +51,16 @@ export default function StaffDashboardScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [showStartDatePicker, setShowStartDatePicker] = useState(false);
   const [showEndDatePicker, setShowEndDatePicker] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const [availableClasses, setAvailableClasses] = useState<Class[]>([]);
   const [selectedClass, setSelectedClass] = useState<string>('');
   const [classTotalStudents, setClassTotalStudents] = useState<number>(0);
   const [showEndSessionSummary, setShowEndSessionSummary] = useState(false);
   const [lastEndedSessionAbsentees, setLastEndedSessionAbsentees] = useState<any[]>([]);
+  const [showPreviewModal, setShowPreviewModal] = useState(false);
+  const [previewData, setPreviewData] = useState<any>(null);
+  const [globalStats, setGlobalStats] = useState({ sessions: 0, present: 0, absent: 0, uniqueStudents: 0 });
+  const [rangeStats, setRangeStats] = useState({ sessions: 0, present: 0, absent: 0, uniqueStudents: 0 });
 
   const activeSession = sessions.find((s) => s.isActive);
 
@@ -131,8 +137,7 @@ export default function StaffDashboardScreen() {
 
   const handleDownloadReport = async (reportType: string) => {
     try {
-      const displayRecords =
-        attendanceViewMode === 'all' && filteredRecords.length === 0 ? records : filteredRecords;
+      const displayRecords = filteredRecords;
 
       // Fetch absent students based on report type
       let absentRecords: any[] = [];
@@ -155,8 +160,7 @@ export default function StaffDashboardScreen() {
         return;
       }
 
-      // Prepare report data
-      const reportData = {
+      const reportData: any = {
         records: displayRecords,
         absentRecords,
         totalStudents,
@@ -169,12 +173,132 @@ export default function StaffDashboardScreen() {
           : undefined,
       };
 
+      // Special handling for Date Range: Group by session
+      if (reportType === 'Date Range' && startDate && endDate) {
+        const supabase = getSharedSupabaseClient();
+
+        // 1. Fetch only sessions created by this staff in this date range
+        const { data: rangeSessions, error: sessError } = await supabase
+          .from('attendance_sessions')
+          .select('*, profiles(name)')
+          .eq('created_by', (user as any).id)
+          .gte('date', startDate)
+          .lte('date', endDate)
+          .order('date', { ascending: true });
+
+        if (sessError) throw sessError;
+
+        if (rangeSessions && rangeSessions.length > 0) {
+          const sessionGroups = await Promise.all(rangeSessions.map(async (s: any) => {
+            // Get records for this session
+            const { data: sessionRecs } = await supabase
+              .from('attendance_records')
+              .select('*')
+              .eq('session_id', s.id);
+
+            const present = (sessionRecs || []).map((r: any) => ({
+              id: r.id,
+              sessionId: r.session_id,
+              sessionName: r.session_name,
+              studentId: r.student_id,
+              studentName: r.student_name,
+              rollNumber: r.roll_number,
+              systemNumber: r.system_number,
+              class: r.class,
+              markedAt: r.marked_at,
+              date: r.date,
+            }));
+
+            // Fetch absentees for this session
+            const absentArr = await attendanceService.getAbsenteesBySession(s.id, s.class_filter);
+
+            return {
+              sessionName: s.session_name,
+              staffName: s.profiles?.name || 'Staff',
+              date: s.date,
+              time: s.time,
+              classFilter: s.class_filter || 'All Classes',
+              present,
+              absent: absentArr,
+            };
+          }));
+
+          reportData.sessionGroups = sessionGroups;
+
+          // Re-calculate overall stats for the date range
+          const totalPresent = sessionGroups.reduce((acc: number, curr: any) => acc + curr.present.length, 0);
+          const totalAbsent = sessionGroups.reduce((acc: number, curr: any) => acc + curr.absent.length, 0);
+          reportData.totalStudents = totalPresent + totalAbsent;
+          reportData.records = sessionGroups.flatMap((g: any) => g.present);
+          reportData.absentRecords = []; // We use groups now
+        }
+      } else if (reportType === 'Session' && selectedSessionId) {
+        // Enhance single session report with staff name
+        const supabase = getSharedSupabaseClient();
+        const currentSession = sessions.find(s => s.id === selectedSessionId);
+        if (currentSession) {
+          const { data: creator } = await supabase
+            .from('profiles')
+            .select('name')
+            .eq('id', currentSession.createdBy)
+            .single();
+
+          reportData.sessionGroups = [{
+            sessionName: currentSession.sessionName,
+            staffName: creator?.name || 'Staff',
+            date: currentSession.date,
+            time: currentSession.time,
+            classFilter: currentSession.classFilter || 'All Classes',
+            present: displayRecords,
+            absent: absentRecords
+          }];
+        }
+      }
+
       // Generate and share professional PDF report
       await pdfReportService.generateAttendanceReport(reportData);
 
     } catch (error: any) {
       console.error('Export error:', error);
       showAlert('Error', error.message || 'Failed to generate report');
+    }
+  };
+
+  const handlePreviewSession = async (sessionId: string) => {
+    try {
+      const session = sessions.find(s => s.id === sessionId);
+      if (!session) return;
+
+      const sessionRecords = getSessionRecords(sessionId);
+      const absentRecords = await attendanceService.getAbsenteesBySession(sessionId);
+
+      const total = sessionRecords.length + absentRecords.length;
+      const rate = total > 0 ? ((sessionRecords.length / total) * 100).toFixed(1) : '0.0';
+
+      const supabase = getSharedSupabaseClient();
+      const { data: creator } = await supabase
+        .from('profiles')
+        .select('name')
+        .eq('id', session.createdBy)
+        .single();
+
+      setPreviewData({
+        sessionName: session.sessionName,
+        date: session.date,
+        time: session.time,
+        classFilter: session.classFilter || 'All Classes',
+        staffName: creator?.name || 'Staff',
+        total,
+        presentCount: sessionRecords.length,
+        absentCount: absentRecords.length,
+        rate,
+        present: sessionRecords,
+        absent: absentRecords,
+        id: sessionId
+      });
+      setShowPreviewModal(true);
+    } catch (error: any) {
+      showAlert('Error', 'Failed to load session preview');
     }
   };
 
@@ -193,12 +317,28 @@ export default function StaffDashboardScreen() {
       }
 
       // Prepare report data
+      const supabase = getSharedSupabaseClient();
+      const { data: creator } = await supabase
+        .from('profiles')
+        .select('name')
+        .eq('id', (user as any).id) // Use current staff ID
+        .single();
+
       const reportData = {
         records: sessionRecords,
         absentRecords,
         totalStudents,
         reportType: 'Session',
         sessionName,
+        sessionGroups: [{
+          sessionName,
+          staffName: creator?.name || 'Staff',
+          date: sessions.find((s: any) => s.id === sessionId)?.date || '',
+          time: sessions.find((s: any) => s.id === sessionId)?.time || '',
+          classFilter: sessions.find((s: any) => s.id === sessionId)?.classFilter || 'All Classes',
+          present: sessionRecords,
+          absent: absentRecords
+        }]
       };
 
       // Generate and share professional PDF report
@@ -224,24 +364,14 @@ export default function StaffDashboardScreen() {
     ]);
   };
 
-  const handleViewAllRecords = () => {
-    setAttendanceViewMode('all');
-    setFilteredRecords(records);
-    setAbsentStudents([]); // Clear absent students for "all" view
-  };
 
-  const handleViewSessionRecords = async () => {
-    if (!selectedSessionId) {
-      showAlert('Error', 'Please select a session');
-      return;
-    }
+  const handleViewSessionRecords = async (sessionId: string) => {
     setAttendanceViewMode('session');
-    const sessionRecs = getSessionRecords(selectedSessionId);
+    const sessionRecs = getSessionRecords(sessionId);
     setFilteredRecords(sessionRecs);
 
-    // Fetch absent students for this session
     try {
-      const absentees = await attendanceService.getAbsenteesBySession(selectedSessionId);
+      const absentees = await attendanceService.getAbsenteesBySession(sessionId);
       setAbsentStudents(absentees);
     } catch (error) {
       console.error('Error fetching absentees:', error);
@@ -250,15 +380,76 @@ export default function StaffDashboardScreen() {
   };
 
   const handleViewDateRangeRecords = async () => {
-    if (!startDate || !endDate) {
-      showAlert('Error', 'Please enter both start and end dates');
-      return;
-    }
+    if (!startDate || !endDate) return;
     setAttendanceViewMode('date-range');
     const dateRecs = await getDateRangeRecords(startDate, endDate);
     setFilteredRecords(dateRecs);
-    setAbsentStudents([]); // Clear absent students for date range view
+    setAbsentStudents([]);
   };
+
+  // Auto-load session records when selection changes
+  React.useEffect(() => {
+    if (selectedSessionId && attendanceViewMode === 'session') {
+      handleViewSessionRecords(selectedSessionId);
+    }
+  }, [selectedSessionId, attendanceViewMode]);
+
+  // Auto-load date range records when dates change
+  React.useEffect(() => {
+    if (attendanceViewMode === 'date-range' && startDate && endDate) {
+      handleViewDateRangeRecords();
+    }
+  }, [startDate, endDate, attendanceViewMode]);
+
+  // Calculate Global and Range Stats
+  React.useEffect(() => {
+    const calculateStats = async () => {
+      // Global
+      const totalPresent = records.length;
+      const uniqueStudents = new Set(records.map(r => r.studentId)).size;
+
+      // We calculate total absents by summing each session's absentees
+      const sessionAbsentsPromises = sessions.map(s => attendanceService.getAbsenteesBySession(s.id, s.classFilter));
+      const absentsResults = await Promise.all(sessionAbsentsPromises);
+      const totalAbsent = absentsResults.reduce((acc, curr) => acc + curr.length, 0);
+
+      setGlobalStats({
+        sessions: sessions.length,
+        present: totalPresent,
+        absent: totalAbsent,
+        uniqueStudents
+      });
+
+      // Range
+      if (startDate && endDate) {
+        const rangeSessions = sessions.filter(s => s.date >= startDate && s.date <= endDate);
+        const rangeRecords = records.filter(r => r.date >= startDate && r.date <= endDate);
+        const rangeUnique = new Set(rangeRecords.map(r => r.studentId)).size;
+
+        const rangeAbsentsPromises = rangeSessions.map(s => attendanceService.getAbsenteesBySession(s.id, s.classFilter));
+        const rangeAbsentsResults = await Promise.all(rangeAbsentsPromises);
+        const rangeAbsent = rangeAbsentsResults.reduce((acc, curr) => acc + curr.length, 0);
+
+        setRangeStats({
+          sessions: rangeSessions.length,
+          present: rangeRecords.length,
+          absent: rangeAbsent,
+          uniqueStudents: rangeUnique
+        });
+      }
+    };
+
+    if (sessions.length > 0) {
+      calculateStats();
+    }
+  }, [sessions, records, startDate, endDate]);
+
+  // Auto-select first session if none selected
+  React.useEffect(() => {
+    if (viewMode === 'attendance' && attendanceViewMode === 'session' && sessions.length > 0 && !selectedSessionId) {
+      setSelectedSessionId(sessions[0].id);
+    }
+  }, [viewMode, attendanceViewMode, sessions]);
 
   const renderFilesView = () => (
     <View style={styles.section}>
@@ -427,43 +618,42 @@ export default function StaffDashboardScreen() {
   };
 
   const renderAttendanceView = () => {
-    const displayRecords =
-      attendanceViewMode === 'all' && filteredRecords.length === 0 ? records : filteredRecords;
+    // Determine which stats to show based on view mode
+    const isRangeMode = attendanceViewMode === 'date-range';
+    const activeStats = isRangeMode && (startDate && endDate) ? rangeStats : globalStats;
+
+    const totalCount = activeStats.present + activeStats.absent;
+    const presentRate = totalCount > 0 ? ((activeStats.present / totalCount) * 100).toFixed(1) : '0.0';
+    const absentRate = totalCount > 0 ? ((activeStats.absent / totalCount) * 100).toFixed(1) : '0.0';
 
     return (
       <View style={styles.section}>
-        <Text style={[styles.sectionTitle, { color: colors.staff.text }]}>
-          View Attendance
-        </Text>
+        <View style={styles.sectionHeaderRow}>
+          <Text style={[styles.sectionTitle, { color: colors.staff.text }]}>
+            Attendance Overview
+          </Text>
+          <View style={styles.summaryBadge}>
+            <Text style={styles.summaryBadgeText}>{activeStats.uniqueStudents} Total Students</Text>
+          </View>
+        </View>
+
+        {/* Attendance Summary Cards */}
+        <View style={styles.proStatsContainer}>
+          <View style={[styles.proStatCard, { borderLeftColor: colors.staff.primary }]}>
+            <Text style={styles.proStatValue}>{activeStats.sessions}</Text>
+            <Text style={styles.proStatLabel}>Sessions</Text>
+          </View>
+          <View style={[styles.proStatCard, { borderLeftColor: colors.staff.success }]}>
+            <Text style={styles.proStatValue}>{presentRate}%</Text>
+            <Text style={styles.proStatLabel}>Present</Text>
+          </View>
+          <View style={[styles.proStatCard, { borderLeftColor: '#EF4444' }]}>
+            <Text style={styles.proStatValue}>{absentRate}%</Text>
+            <Text style={styles.proStatLabel}>Absent</Text>
+          </View>
+        </View>
 
         <View style={styles.filterButtons}>
-          <Pressable
-            onPress={handleViewAllRecords}
-            style={({ pressed }) => [
-              styles.filterButton,
-              attendanceViewMode === 'all' && {
-                backgroundColor: colors.staff.primary,
-              },
-              !attendanceViewMode.includes('all') && {
-                backgroundColor: colors.staff.surface,
-                borderColor: colors.staff.border,
-                borderWidth: 1,
-              },
-              pressed && styles.pressed,
-            ]}
-          >
-            <Text
-              style={[
-                styles.filterButtonText,
-                attendanceViewMode === 'all'
-                  ? { color: colors.common.white }
-                  : { color: colors.staff.text },
-              ]}
-            >
-              All Records
-            </Text>
-          </Pressable>
-
           <Pressable
             onPress={() => setAttendanceViewMode('session')}
             style={({ pressed }) => [
@@ -471,7 +661,7 @@ export default function StaffDashboardScreen() {
               attendanceViewMode === 'session' && {
                 backgroundColor: colors.staff.primary,
               },
-              !attendanceViewMode.includes('session') && {
+              attendanceViewMode !== 'session' && {
                 backgroundColor: colors.staff.surface,
                 borderColor: colors.staff.border,
                 borderWidth: 1,
@@ -498,7 +688,7 @@ export default function StaffDashboardScreen() {
               attendanceViewMode === 'date-range' && {
                 backgroundColor: colors.staff.primary,
               },
-              !attendanceViewMode.includes('date-range') && {
+              attendanceViewMode !== 'date-range' && {
                 backgroundColor: colors.staff.surface,
                 borderColor: colors.staff.border,
                 borderWidth: 1,
@@ -537,6 +727,7 @@ export default function StaffDashboardScreen() {
                             ? colors.staff.surfaceLight
                             : colors.staff.surface,
                         borderColor: colors.staff.border,
+                        borderWidth: 1,
                       },
                     ]}
                   >
@@ -552,9 +743,12 @@ export default function StaffDashboardScreen() {
                       </Text>
                     </Pressable>
                     <View style={styles.sessionActions}>
-                      {selectedSessionId === item.id && (
-                        <MaterialIcons name="check-circle" size={24} color={colors.staff.primary} style={{ marginRight: spacing.xs }} />
-                      )}
+                      <Pressable
+                        onPress={() => handlePreviewSession(item.id)}
+                        style={{ marginRight: spacing.sm }}
+                      >
+                        <MaterialIcons name="visibility" size={24} color={colors.staff.primary} />
+                      </Pressable>
                       <Pressable
                         onPress={() => handleDownloadSessionReport(item.id, item.sessionName)}
                         style={({ pressed }) => [
@@ -571,28 +765,39 @@ export default function StaffDashboardScreen() {
                 ItemSeparatorComponent={() => <View style={{ height: spacing.xs }} />}
               />
             </View>
-            <Button
-              title="View Session Records"
-              onPress={handleViewSessionRecords}
-              role="staff"
-              style={{ marginTop: spacing.md }}
-            />
           </View>
         )}
 
         {attendanceViewMode === 'date-range' && (
           <View style={styles.filterForm}>
-            <Pressable onPress={() => setShowStartDatePicker(true)}>
-              <View pointerEvents="none">
-                <Input
-                  label="Start Date"
-                  value={startDate}
-                  placeholder="Select Start Date"
-                  role="staff"
-                  editable={false}
-                />
+            <View style={styles.dateRangeRow}>
+              <View style={styles.dateInputWrapper}>
+                <Pressable onPress={() => setShowStartDatePicker(true)}>
+                  <View pointerEvents="none">
+                    <Input
+                      label="Start Date"
+                      value={startDate}
+                      placeholder="Select Date"
+                      role="staff"
+                      editable={false}
+                    />
+                  </View>
+                </Pressable>
               </View>
-            </Pressable>
+              <View style={styles.dateInputWrapper}>
+                <Pressable onPress={() => setShowEndDatePicker(true)}>
+                  <View pointerEvents="none">
+                    <Input
+                      label="End Date"
+                      value={endDate}
+                      placeholder="Select Date"
+                      role="staff"
+                      editable={false}
+                    />
+                  </View>
+                </Pressable>
+              </View>
+            </View>
             {showStartDatePicker && (
               <DateTimePicker
                 value={startDate ? new Date(startDate) : new Date()}
@@ -604,18 +809,6 @@ export default function StaffDashboardScreen() {
                 }}
               />
             )}
-
-            <Pressable onPress={() => setShowEndDatePicker(true)}>
-              <View pointerEvents="none">
-                <Input
-                  label="End Date"
-                  value={endDate}
-                  placeholder="Select End Date"
-                  role="staff"
-                  editable={false}
-                />
-              </View>
-            </Pressable>
             {showEndDatePicker && (
               <DateTimePicker
                 value={endDate ? new Date(endDate) : new Date()}
@@ -627,120 +820,144 @@ export default function StaffDashboardScreen() {
                 }}
               />
             )}
-
-            <Button
-              title="View Date Range Records"
-              onPress={handleViewDateRangeRecords}
-              role="staff"
-              style={{ marginTop: spacing.md }}
-            />
           </View>
         )}
 
-        <View style={styles.recordsContainer}>
-          <View style={styles.recordsHeader}>
-            <Text style={[styles.recordsTitle, { color: colors.staff.text }]}>
-              Records ({displayRecords.length})
-            </Text>
-            <Pressable
-              onPress={() =>
-                handleDownloadReport(
-                  attendanceViewMode === 'all'
-                    ? 'All'
-                    : attendanceViewMode === 'session'
-                      ? 'Session'
-                      : 'Date Range'
-                )
-              }
-              style={({ pressed }) => [styles.downloadButton, pressed && styles.pressed]}
-            >
-              <MaterialIcons name="download" size={20} color={colors.staff.primary} />
-              <Text style={[styles.downloadText, { color: colors.staff.primary }]}>
-                Download PDF
-              </Text>
-            </Pressable>
+        {attendanceViewMode === 'date-range' && (
+          <View style={styles.recordsContainer}>
+            {startDate && endDate ? (
+              <View style={styles.rangeReportCard}>
+                <View style={styles.rangeReportHeader}>
+                  <View style={styles.rangeIconContainer}>
+                    <MaterialIcons name="assessment" size={32} color={colors.staff.primary} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.rangeReportTitle}>Consolidated Report</Text>
+                    <Text style={styles.rangeReportPeriod}>
+                      {startDate} — {endDate}
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={styles.rangeSummaryGrid}>
+                  <View style={styles.rangeSummaryItem}>
+                    <Text style={styles.rangeSummaryValue}>
+                      {sessions.filter(s => s.date >= startDate && s.date <= endDate).length}
+                    </Text>
+                    <Text style={styles.rangeSummaryLabel}>Sessions Found</Text>
+                  </View>
+                  <View style={[styles.rangeSummaryItem, { borderLeftWidth: 1, borderLeftColor: '#F1F5F9' }]}>
+                    <Text style={styles.rangeSummaryValue}>
+                      {filteredRecords.length}
+                    </Text>
+                    <Text style={styles.rangeSummaryLabel}>Total Present</Text>
+                  </View>
+                </View>
+
+                <View style={styles.rangeActionSection}>
+                  <Text style={styles.rangeActionHint}>
+                    Download a comprehensive PDF report featuring all attendance sessions within this date range.
+                  </Text>
+                  <Button
+                    title="Download Full Report"
+                    onPress={() => handleDownloadReport('Date Range')}
+                    role="staff"
+                    icon={<MaterialIcons name="picture-as-pdf" size={20} color="white" />}
+                    style={{ marginTop: spacing.md }}
+                  />
+                </View>
+              </View>
+            ) : (
+              <View style={styles.rangeHelpContainer}>
+                <MaterialIcons name="date-range" size={48} color={colors.staff.border} />
+                <Text style={styles.rangeHelpText}>
+                  Select both a start and end date above to generate a consolidated report for that period.
+                </Text>
+              </View>
+            )}
           </View>
+        )}
 
+        {/* Session Preview Modal */}
+        <Modal
+          visible={showPreviewModal}
+          transparent
+          animationType="slide"
+          onRequestClose={() => setShowPreviewModal(false)}
+        >
+          <View style={styles.previewModalOverlay}>
+            <View style={[styles.previewModalContent, { backgroundColor: colors.common.white }]}>
+              <View style={styles.modalHeader}>
+                <View>
+                  <Text style={styles.modalTitle}>{previewData?.sessionName}</Text>
+                  <Text style={styles.modalSubtitle}>{previewData?.date} • {previewData?.time}</Text>
+                </View>
+                <Pressable onPress={() => setShowPreviewModal(false)} style={styles.closeButton}>
+                  <MaterialIcons name="close" size={28} color={colors.staff.text} />
+                </Pressable>
+              </View>
 
-          {displayRecords.length === 0 && absentStudents.length === 0 ? (
-            <View style={styles.emptyContainer}>
-              <MaterialIcons name="event-busy" size={64} color={colors.staff.border} />
-              <Text style={[styles.emptyText, { color: colors.staff.textSecondary }]}>
-                No attendance records found
-              </Text>
+              <View style={styles.previewScrollArea}>
+                <View style={styles.previewBadgeRow}>
+                  <View style={styles.previewMiniCard}>
+                    <Text style={styles.previewMiniValue}>{previewData?.total}</Text>
+                    <Text style={styles.previewMiniLabel}>Students</Text>
+                  </View>
+                  <View style={[styles.previewMiniCard, { borderLeftColor: colors.staff.success, borderLeftWidth: 4 }]}>
+                    <Text style={[styles.previewMiniValue, { color: colors.staff.success }]}>{previewData?.presentCount}</Text>
+                    <Text style={styles.previewMiniLabel}>Present</Text>
+                  </View>
+                  <View style={[styles.previewMiniCard, { borderLeftColor: '#EF4444', borderLeftWidth: 4 }]}>
+                    <Text style={[styles.previewMiniValue, { color: '#EF4444' }]}>{previewData?.absentCount}</Text>
+                    <Text style={styles.previewMiniLabel}>Absent</Text>
+                  </View>
+                </View>
+
+                <View style={styles.previewRateSection}>
+                  <Text style={styles.previewRateText}>Average Attendance Rate</Text>
+                  <Text style={styles.previewRateValue}>{previewData?.rate}%</Text>
+                  <Text style={styles.previewInfoText}>Class: {previewData?.classFilter} • Staff: {previewData?.staffName}</Text>
+                </View>
+
+                <View style={styles.previewListHeader}>
+                  <Text style={styles.previewListTitle}>Attendance Details</Text>
+                </View>
+
+                <FlatList
+                  data={[
+                    ...(previewData?.present || []).map((p: any) => ({ ...p, type: 'present' })),
+                    ...(previewData?.absent || []).map((a: any) => ({ ...a, type: 'absent' }))
+                  ]}
+                  keyExtractor={(item, index) => index.toString()}
+                  renderItem={({ item }) => (
+                    <View style={styles.previewListItem}>
+                      <View style={[styles.previewDot, { backgroundColor: item.type === 'present' ? colors.staff.success : '#EF4444' }]} />
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.previewItemName}>{item.studentName}</Text>
+                        <Text style={styles.previewItemRoll}>{item.rollNumber}</Text>
+                      </View>
+                      <Text style={[styles.previewItemStatus, { color: item.type === 'present' ? colors.staff.success : '#EF4444' }]}>
+                        {item.type.toUpperCase()}
+                      </Text>
+                    </View>
+                  )}
+                  style={{ maxHeight: 400 }}
+                />
+              </View>
+
+              <View style={styles.previewFooter}>
+                <Button
+                  title="Download PDF Report"
+                  onPress={() => {
+                    handleDownloadSessionReport(previewData?.id, previewData?.sessionName);
+                  }}
+                  role="staff"
+                  icon={<MaterialIcons name="file-download" size={20} color="white" />}
+                />
+              </View>
             </View>
-          ) : (
-            <>
-              {displayRecords.length > 0 && (
-                <>
-                  <Text style={[styles.sectionSubtitle, { color: colors.staff.text, marginBottom: spacing.sm }]}>
-                    Present Students ({displayRecords.length})
-                  </Text>
-                  <FlatList
-                    data={displayRecords}
-                    keyExtractor={(item) => item.id}
-                    scrollEnabled={false}
-                    renderItem={({ item }) => (
-                      <View
-                        style={[
-                          styles.recordCard,
-                          { backgroundColor: colors.staff.surface, borderColor: colors.staff.border },
-                        ]}
-                      >
-                        <View style={styles.recordInfo}>
-                          <Text style={[styles.recordName, { color: colors.staff.text }]}>
-                            {item.studentName}
-                          </Text>
-                          <Text style={[styles.recordDetails, { color: colors.staff.textSecondary }]}>
-                            Roll: {item.rollNumber} • Class: {item.class}
-                          </Text>
-                          <Text style={[styles.recordDetails, { color: colors.staff.textSecondary }]}>
-                            {item.sessionName} • {item.date}
-                          </Text>
-                        </View>
-                        <MaterialIcons name="check-circle" size={24} color={colors.staff.success} />
-                      </View>
-                    )}
-                    ItemSeparatorComponent={() => <View style={{ height: spacing.sm }} />}
-                  />
-                </>
-              )}
-
-              {absentStudents.length > 0 && (
-                <>
-                  <Text style={[styles.sectionSubtitle, { color: colors.staff.text, marginTop: displayRecords.length > 0 ? spacing.lg : 0, marginBottom: spacing.sm }]}>
-                    Absent Students ({absentStudents.length})
-                  </Text>
-                  <FlatList
-                    data={absentStudents}
-                    keyExtractor={(item) => item.studentId}
-                    scrollEnabled={false}
-                    renderItem={({ item }) => (
-                      <View
-                        style={[
-                          styles.recordCard,
-                          styles.absentCard,
-                          { backgroundColor: '#FEF2F2', borderColor: '#EF4444' },
-                        ]}
-                      >
-                        <View style={styles.recordInfo}>
-                          <Text style={[styles.recordName, { color: colors.staff.text }]}>
-                            {item.studentName}
-                          </Text>
-                          <Text style={[styles.recordDetails, { color: colors.staff.textSecondary }]}>
-                            Roll: {item.rollNumber} • Class: {item.class}
-                          </Text>
-                        </View>
-                        <MaterialIcons name="cancel" size={24} color="#EF4444" />
-                      </View>
-                    )}
-                    ItemSeparatorComponent={() => <View style={{ height: spacing.sm }} />}
-                  />
-                </>
-              )}
-            </>
-          )}
-        </View>
+          </View>
+        </Modal>
       </View>
     );
   };
@@ -843,7 +1060,6 @@ export default function StaffDashboardScreen() {
           <Pressable
             onPress={() => {
               setViewMode('attendance');
-              handleViewAllRecords();
             }}
             style={[
               styles.tab,
@@ -954,7 +1170,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   tabActive: {
-    backgroundColor: colors.staff.primary + '15', // Subtle primary tint
+    backgroundColor: colors.staff.primary + '15',
   },
   tabText: {
     ...typography.bodySmall,
@@ -1023,7 +1239,7 @@ const styles = StyleSheet.create({
   filterButtons: {
     flexDirection: 'row',
     gap: spacing.sm,
-    marginBottom: spacing.md,
+    marginBottom: spacing.sm,
   },
   filterButton: {
     flex: 1,
@@ -1038,10 +1254,17 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   filterForm: {
-    marginBottom: spacing.lg,
+    marginBottom: spacing.xs,
+  },
+  dateRangeRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  dateInputWrapper: {
+    flex: 1,
   },
   pickerContainer: {
-    marginBottom: spacing.md,
+    marginBottom: spacing.xs,
   },
   label: {
     ...typography.bodySmall,
@@ -1077,23 +1300,137 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   recordsContainer: {
-    marginTop: spacing.lg,
+    marginTop: 0,
   },
   recordsHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: spacing.md,
+    marginBottom: spacing.sm,
   },
   recordsTitle: {
     ...typography.h3,
+    fontWeight: '700',
+  },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: spacing.md,
+  },
+  summaryBadge: {
+    backgroundColor: colors.staff.surfaceLight,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.staff.border,
+  },
+  summaryBadgeText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.staff.primary,
+  },
+  proStatsContainer: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  proStatCard: {
+    flex: 1,
+    backgroundColor: colors.common.white,
+    padding: spacing.md,
+    borderRadius: borderRadius.lg,
+    borderLeftWidth: 4,
+    ...shadows.sm,
+  },
+  proStatValue: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: colors.staff.text,
+  },
+  proStatLabel: {
+    fontSize: 10,
+    color: colors.staff.textSecondary,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    marginTop: 2,
+  },
+  searchContainer: {
+    marginBottom: spacing.sm,
+  },
+  searchInputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.common.white,
+    borderRadius: borderRadius.md,
+    paddingHorizontal: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.staff.border,
+  },
+  searchInput: {
+    flex: 1,
+    height: 48,
+    fontSize: 14,
+  },
+  recordCardPro: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: spacing.md,
+    borderRadius: borderRadius.lg,
+    borderWidth: 1,
+    borderColor: colors.staff.border,
+    ...shadows.sm,
+  },
+  avatarCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: spacing.md,
+  },
+  avatarText: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: colors.staff.primary,
+  },
+  recordContent: {
+    flex: 1,
+  },
+  recordHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 2,
+  },
+  recordNamePro: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.staff.text,
+  },
+  statusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  statusBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  recordDetailPro: {
+    fontSize: 12,
+    color: colors.staff.textSecondary,
+    fontWeight: '500',
+  },
+  recordMetaPro: {
+    fontSize: 11,
+    color: colors.common.gray400,
+    marginTop: 2,
   },
   sectionSubtitle: {
     ...typography.body,
     fontWeight: '700',
-  },
-  absentCard: {
-    // Additional styling for absent cards (combined with recordCard)
   },
   downloadButton: {
     flexDirection: 'row',
@@ -1103,24 +1440,6 @@ const styles = StyleSheet.create({
   downloadText: {
     ...typography.bodySmall,
     fontWeight: '600',
-  },
-  recordCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: spacing.md,
-    borderRadius: borderRadius.md,
-    borderWidth: 1,
-  },
-  recordInfo: {
-    flex: 1,
-  },
-  recordName: {
-    ...typography.body,
-    fontWeight: '600',
-  },
-  recordDetails: {
-    ...typography.caption,
-    marginTop: 2,
   },
   emptyContainer: {
     paddingVertical: spacing.xxl,
@@ -1204,5 +1523,199 @@ const styles = StyleSheet.create({
   },
   absenteeDetails: {
     fontSize: 12,
+  },
+  previewModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'flex-end',
+  },
+  previewModalContent: {
+    height: '92%',
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+    padding: spacing.xl,
+    paddingBottom: 40,
+  },
+  modalSubtitle: {
+    fontSize: 14,
+    color: colors.staff.textSecondary,
+    marginTop: 2,
+  },
+  closeButton: {
+    padding: spacing.xs,
+  },
+  previewScrollArea: {
+    flex: 1,
+    marginTop: spacing.lg,
+  },
+  previewBadgeRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    marginBottom: spacing.xl,
+  },
+  previewMiniCard: {
+    flex: 1,
+    backgroundColor: '#F8FAFC',
+    padding: spacing.md,
+    borderRadius: 16,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  previewMiniValue: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: colors.staff.text,
+  },
+  previewMiniLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: colors.staff.textSecondary,
+    textTransform: 'uppercase',
+    marginTop: 4,
+  },
+  previewRateSection: {
+    backgroundColor: colors.staff.primary + '10',
+    padding: spacing.xl,
+    borderRadius: 24,
+    alignItems: 'center',
+    marginBottom: spacing.xl,
+  },
+  previewRateText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.staff.primary,
+  },
+  previewRateValue: {
+    fontSize: 48,
+    fontWeight: '900',
+    color: colors.staff.primary,
+    marginVertical: spacing.xs,
+  },
+  previewInfoText: {
+    fontSize: 12,
+    color: colors.staff.textSecondary,
+    fontWeight: '500',
+  },
+  previewListHeader: {
+    marginBottom: spacing.md,
+  },
+  previewListTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: colors.staff.text,
+  },
+  previewListItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+  },
+  previewDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: spacing.md,
+  },
+  previewItemName: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: colors.staff.text,
+  },
+  previewItemRoll: {
+    fontSize: 12,
+    color: colors.staff.textSecondary,
+  },
+  previewItemStatus: {
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  previewFooter: {
+    marginTop: spacing.xl,
+  },
+  rangeReportCard: {
+    backgroundColor: colors.common.white,
+    borderRadius: 24,
+    padding: spacing.xl,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+    ...shadows.md,
+  },
+  rangeReportHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: spacing.xl,
+  },
+  rangeIconContainer: {
+    width: 56,
+    height: 56,
+    borderRadius: 16,
+    backgroundColor: colors.staff.primary + '15',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: spacing.md,
+  },
+  rangeReportTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: colors.staff.text,
+  },
+  rangeReportPeriod: {
+    fontSize: 14,
+    color: colors.staff.textSecondary,
+    marginTop: 2,
+    fontWeight: '600',
+  },
+  rangeSummaryGrid: {
+    flexDirection: 'row',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 16,
+    padding: spacing.md,
+    marginBottom: spacing.xl,
+  },
+  rangeSummaryItem: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  rangeSummaryValue: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: colors.staff.primary,
+  },
+  rangeSummaryLabel: {
+    fontSize: 12,
+    color: colors.staff.textSecondary,
+    fontWeight: '600',
+    marginTop: 4,
+  },
+  rangeActionSection: {
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+    paddingTop: spacing.xl,
+  },
+  rangeActionHint: {
+    fontSize: 13,
+    color: colors.staff.textSecondary,
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: spacing.sm,
+  },
+  rangeHelpContainer: {
+    alignItems: 'center',
+    paddingVertical: spacing.xxl,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 24,
+    borderWidth: 2,
+    borderColor: '#E2E8F0',
+    borderStyle: 'dashed',
+  },
+  rangeHelpText: {
+    fontSize: 14,
+    color: colors.staff.textSecondary,
+    textAlign: 'center',
+    marginTop: spacing.md,
+    paddingHorizontal: spacing.xl,
+    lineHeight: 22,
   },
 });

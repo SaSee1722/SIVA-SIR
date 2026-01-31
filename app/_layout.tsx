@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Stack } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import * as SplashScreen from 'expo-splash-screen';
 import { AuthProvider } from '@/contexts/AuthContext';
@@ -47,6 +47,23 @@ export default function RootLayout() {
 
     prepare();
   }, []);
+
+  // Handle notification clicks for deep linking
+  const router = useRouter();
+
+  useEffect(() => {
+    const subscription = Notifications.addNotificationResponseReceivedListener(response => {
+      const data = response.notification.request.content.data;
+      if (data?.action === 'join_session') {
+        // Delay slightly to ensure app is ready to navigate
+        setTimeout(() => {
+          router.push('/qr-scanner');
+        }, 500);
+      }
+    });
+
+    return () => subscription.remove();
+  }, [router]);
 
   if (!appIsReady) {
     return null;

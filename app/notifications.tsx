@@ -103,6 +103,19 @@ export default function NotificationsScreen() {
                                     <Text style={styles.time}>
                                         {format(new Date(item.createdAt), 'MMM d, h:mm a')}
                                     </Text>
+
+                                    {item.type === 'session_created' && item.metadata?.action === 'join_session' && (
+                                        <Pressable
+                                            onPress={() => {
+                                                markAsRead(item.id);
+                                                router.push('/qr-scanner');
+                                            }}
+                                            style={styles.joinButton}
+                                        >
+                                            <MaterialIcons name="qr-code-scanner" size={18} color={colors.common.white} />
+                                            <Text style={styles.joinButtonText}>Scan QR & Join</Text>
+                                        </Pressable>
+                                    )}
                                 </View>
                             </Pressable>
                         )}
@@ -243,5 +256,21 @@ const styles = StyleSheet.create({
         color: colors.student.textSecondary,
         textAlign: 'center',
         lineHeight: 22,
+    },
+    joinButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: colors.student.primary,
+        alignSelf: 'flex-start',
+        paddingVertical: 8,
+        paddingHorizontal: 12,
+        borderRadius: 8,
+        marginTop: 10,
+        gap: 6,
+    },
+    joinButtonText: {
+        color: colors.common.white,
+        fontSize: 14,
+        fontWeight: '600',
     },
 });

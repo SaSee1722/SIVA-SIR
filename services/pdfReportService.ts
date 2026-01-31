@@ -10,6 +10,16 @@ interface AbsentRecord {
   class: string;
 }
 
+interface SessionGroup {
+  sessionName: string;
+  staffName: string;
+  date: string;
+  time: string;
+  classFilter: string;
+  present: AttendanceRecord[];
+  absent: AbsentRecord[];
+}
+
 interface ReportData {
   records: AttendanceRecord[];
   absentRecords?: AbsentRecord[];
@@ -17,23 +27,44 @@ interface ReportData {
   sessionName?: string;
   dateRange?: { start: string; end: string };
   totalStudents?: number;
+  sessionGroups?: SessionGroup[];
 }
 
 export const pdfReportService = {
   async generateAttendanceReport(data: ReportData): Promise<void> {
-    const { records, absentRecords = [], reportType, sessionName, dateRange, totalStudents } = data;
+    const {
+      records,
+      absentRecords = [],
+      reportType,
+      sessionName,
+      dateRange,
+      totalStudents,
+      sessionGroups = []
+    } = data;
 
     if (records.length === 0 && absentRecords.length === 0) {
       throw new Error('No records to generate report');
     }
 
-    // Calculate statistics
-    const totalPresent = records.length;
-    const totalAbsent = absentRecords.length;
-    const totalCount = totalStudents || (totalPresent + totalAbsent);
+    // Calculate statistics based on session groups if present (Date Range), otherwise use flat lists
+    let totalPresent = records.length;
+    let totalAbsent = absentRecords.length;
+    let sessionsCount = 1;
+
+    if (sessionGroups.length > 0) {
+      totalPresent = sessionGroups.reduce((acc, g) => acc + g.present.length, 0);
+      totalAbsent = sessionGroups.reduce((acc, g) => acc + g.absent.length, 0);
+      sessionsCount = sessionGroups.length;
+    }
+
+    const totalCount = totalPresent + totalAbsent;
     const attendanceRate = totalCount > 0 ? ((totalPresent / totalCount) * 100).toFixed(1) : '0.0';
-    const uniqueStudents = new Set(records.map(r => r.studentId)).size;
-    const uniqueSessions = new Set(records.map(r => r.sessionId)).size;
+
+    // Unique students across all records
+    const uniqueStudents = new Set([
+      ...records.map(r => r.studentId),
+      ...sessionGroups.flatMap(g => g.present.map(p => p.studentId))
+    ]).size;
 
     // Generate report title and subtitle
     let reportTitle = 'Attendance Report';
@@ -128,45 +159,68 @@ export const pdfReportService = {
             }
             
             .summary-section {
-              background: linear-gradient(135deg, #7C3AED 0%, #6D28D9 100%);
-              padding: 20px;
-              border-radius: 12px;
-              margin-bottom: 25px;
+              background: #7c3aed;
+              padding: 24px;
+              border-radius: 16px;
+              margin-bottom: 30px;
               color: white;
+              box-shadow: 0 10px 15px -3px rgba(124, 58, 237, 0.2);
             }
             
             .summary-title {
-              font-size: 16px;
-              font-weight: 600;
-              margin-bottom: 15px;
-              opacity: 0.95;
+              font-size: 14px;
+              font-weight: 700;
+              margin-bottom: 20px;
+              text-transform: uppercase;
+              letter-spacing: 0.1em;
+              color: rgba(255, 255, 255, 0.9);
             }
             
             .summary-stats {
               display: grid;
               grid-template-columns: repeat(4, 1fr);
-              gap: 15px;
+              gap: 12px;
             }
             
             .stat-item {
               text-align: center;
               background: rgba(255, 255, 255, 0.15);
-              padding: 15px;
-              border-radius: 8px;
-              backdrop-filter: blur(10px);
+              padding: 15px 8px;
+              border-radius: 12px;
+              border: 1px solid rgba(255, 255, 255, 0.2);
             }
             
             .stat-value {
-              font-size: 32px;
+              font-size: 26px;
               font-weight: 800;
-              line-height: 1;
-              margin-bottom: 5px;
+              margin-bottom: 2px;
+              color: white;
+              text-shadow: 0 2px 4px rgba(0,0,0,0.1);
             }
             
             .stat-label {
-              font-size: 12px;
-              opacity: 0.9;
-              font-weight: 500;
+              font-size: 9px;
+              font-weight: 700;
+              text-transform: uppercase;
+              letter-spacing: 0.05em;
+              color: rgba(255, 255, 255, 0.85);
+            }
+
+            .rate-message {
+                text-align: center;
+                margin-top: 20px;
+                padding-top: 15px;
+                border-top: 1px solid rgba(255, 255, 255, 0.2);
+                font-size: 13px;
+                font-weight: 600;
+                color: white;
+            }
+            
+            .rate-highlight {
+                color: #6ee7b7;
+                font-size: 16px;
+                font-weight: 800;
+                margin-left: 5px;
             }
             
             .section-header {
@@ -195,112 +249,83 @@ export const pdfReportService = {
               gap: 12px;
             }
             
-            .record-card {
-              background: #ffffff;
-              border: 1px solid #e5e7eb;
-              border-radius: 10px;
-              padding: 16px;
-              display: flex;
-              justify-content: space-between;
-              align-items: center;
-              transition: all 0.2s;
-            }
-            
-            .record-card:hover {
-              background: #f9fafb;
-              border-color: #7C3AED;
-              box-shadow: 0 2px 8px rgba(124, 58, 237, 0.1);
-            }
-            
-            .record-info {
-              flex: 1;
-            }
-            
-            .student-name {
-              font-size: 16px;
-              font-weight: 600;
-              color: #111827;
-              margin-bottom: 6px;
-            }
-            
-            .record-details {
-              font-size: 13px;
-              color: #6b7280;
-              margin-bottom: 4px;
-            }
-            
-            .record-details:last-child {
-              margin-bottom: 0;
-            }
-            
-            .detail-separator {
-              margin: 0 6px;
-              color: #d1d5db;
-            }
-            
             .check-icon {
-              width: 28px;
-              height: 28px;
-              background: #10b981;
-              border-radius: 50%;
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              color: white;
+              color: #10b981;
+              font-weight: 700;
               font-size: 18px;
-              font-weight: bold;
-              flex-shrink: 0;
             }
             
-            .absent-card {
-              border-color: #ef4444 !important;
-              background: #fef2f2 !important;
+            .absent-text {
+              color: #ef4444 !important;
+              font-weight: 700;
             }
-            
-            .absent-icon {
-              width: 28px;
-              height: 28px;
-              background: #ef4444;
-              border-radius: 50%;
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              color: white;
-              font-size: 18px;
-              font-weight: bold;
-              flex-shrink: 0;
+
+            .present-text {
+              color: #16a34a !important;
+              font-weight: 700;
             }
-            
-            .empty-state {
-              text-align: center;
-              padding: 60px 20px;
-              color: #9ca3af;
+
+            .session-card {
+                background: #ffffff;
+                border: 2px solid #e5e7eb;
+                border-radius: 12px;
+                margin-bottom: 30px;
+                overflow: hidden;
+                box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
             }
-            
-            .empty-icon {
-              font-size: 48px;
-              margin-bottom: 15px;
+
+            .session-card-header {
+                background: #f9fafb;
+                padding: 16px 20px;
+                border-bottom: 1px solid #e5e7eb;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
             }
-            
-            .empty-text {
-              font-size: 16px;
-              color: #6b7280;
+
+            .session-card-title {
+                font-size: 18px;
+                font-weight: 700;
+                color: #111827;
             }
-            
-            .footer {
-              margin-top: 40px;
-              padding-top: 20px;
-              border-top: 2px solid #e5e7eb;
-              text-align: center;
-              color: #6b7280;
-              font-size: 11px;
+
+            .session-card-meta {
+                font-size: 13px;
+                color: #6b7280;
+                margin-top: 4px;
             }
-            
-            .footer-note {
-              margin-top: 8px;
-              font-style: italic;
+
+            .student-table {
+                width: 100%;
+                border-collapse: collapse;
             }
-            
+
+            .student-table th {
+                text-align: left;
+                padding: 12px 20px;
+                background: #f3f4f6;
+                color: #4b5563;
+                font-size: 12px;
+                text-transform: uppercase;
+                letter-spacing: 0.05em;
+            }
+
+            .student-table td {
+                padding: 12px 20px;
+                border-bottom: 1px solid #f3f4f6;
+                font-size: 14px;
+            }
+
+            .status-present {
+                background-color: #dcfce7;
+                color: #166534;
+            }
+
+            .status-absent {
+                background-color: #fee2e2;
+                color: #991b1b;
+            }
+
             @media print {
               body {
                 padding: 20px;
@@ -337,24 +362,76 @@ export const pdfReportService = {
             <div class="summary-title">Attendance Summary</div>
             <div class="summary-stats">
               <div class="stat-item">
-                <div class="stat-value">${totalCount}</div>
-                <div class="stat-label">Total Students</div>
+                <div class="stat-value">${sessionsCount}</div>
+                <div class="stat-label">Total Sessions</div>
               </div>
               <div class="stat-item">
-                <div class="stat-value">${totalPresent}</div>
+                <div class="stat-value">${totalCount}</div>
+                <div class="stat-label">Tracking Units</div>
+              </div>
+              <div class="stat-item">
+               <div class="stat-value" style="color: #6ee7b7;">${totalPresent}</div>
                 <div class="stat-label">Present</div>
               </div>
               <div class="stat-item">
-                <div class="stat-value">${totalAbsent}</div>
+               <div class="stat-value" style="color: #fca5a5;">${totalAbsent}</div>
                 <div class="stat-label">Absent</div>
               </div>
-              <div class="stat-item">
-                <div class="stat-value">${attendanceRate}%</div>
-                <div class="stat-label">Attendance Rate</div>
-              </div>
+            </div>
+            <div class="rate-message">
+               Overall attendance rate for the following sessions: <span class="rate-highlight">${attendanceRate}%</span>
             </div>
           </div>
           
+          
+          ${sessionGroups.length > 0 ? `
+            ${sessionGroups.map((group) => `
+                <div class="session-card">
+                    <div class="session-card-header">
+                        <div>
+                            <div class="session-card-title">${group.sessionName}</div>
+                            <div class="session-card-meta">
+                                Staff: ${group.staffName} | Date: ${group.date} | Time: ${group.time}
+                            </div>
+                        </div>
+                        <div class="record-count">
+                            ${group.present.length} Present | ${group.absent.length} Absent
+                        </div>
+                    </div>
+                    <table class="student-table">
+                        <thead>
+                            <tr>
+                                <th>Student Name</th>
+                                <th>Roll Number</th>
+                                <th>System No</th>
+                                <th>Class</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${group.present.map(p => `
+                                <tr>
+                                    <td class="present-text">${p.studentName}</td>
+                                    <td>${p.rollNumber}</td>
+                                    <td>${p.systemNumber || '-'}</td>
+                                    <td>${group.classFilter}</td>
+                                    <td><span class="present-text">✓ Present</span></td>
+                                </tr>
+                            `).join('')}
+                            ${group.absent.map(a => `
+                                <tr>
+                                    <td class="absent-text">${a.studentName}</td>
+                                    <td>${a.rollNumber}</td>
+                                    <td>${a.systemNumber || '-'}</td>
+                                    <td>${group.classFilter}</td>
+                                    <td><span class="absent-text">✕ Absent</span></td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `).join('')}
+          ` : `
           
           ${records.length > 0 ? `
             <div class="section-header">
@@ -363,13 +440,7 @@ export const pdfReportService = {
             </div>
             
             <div class="records-grid">
-              ${records.map((record) => {
-      const markedTime = new Date(record.markedAt).toLocaleTimeString('en-US', {
-        hour: '2-digit',
-        minute: '2-digit',
-      });
-
-      return `
+              ${records.map((record) => `
                   <div class="record-card">
                     <div class="record-info">
                       <div class="student-name">${record.studentName}</div>
@@ -377,13 +448,12 @@ export const pdfReportService = {
                         Roll: ${record.rollNumber}${record.systemNumber ? `<span class="detail-separator">•</span>System: ${record.systemNumber}` : ''}<span class="detail-separator">•</span>Class: ${record.class}
                       </div>
                       <div class="record-details">
-                        ${record.sessionName}<span class="detail-separator">•</span>${record.date}<span class="detail-separator">•</span>${markedTime}
+                        ${record.sessionName}<span class="detail-separator">•</span>${record.date}
                       </div>
                     </div>
                     <div class="check-icon">✓</div>
                   </div>
-                `;
-    }).join('')}
+                `).join('')}
             </div>
           ` : ''}
           
@@ -394,8 +464,7 @@ export const pdfReportService = {
             </div>
             
             <div class="records-grid">
-              ${absentRecords.map((record) => {
-      return `
+              ${absentRecords.map((record) => `
                   <div class="record-card absent-card">
                     <div class="record-info">
                       <div class="student-name">${record.studentName}</div>
@@ -405,12 +474,12 @@ export const pdfReportService = {
                     </div>
                     <div class="absent-icon">✕</div>
                   </div>
-                `;
-    }).join('')}
+                `).join('')}
             </div>
           ` : ''}
+          `}
           
-          ${records.length === 0 && absentRecords.length === 0 ? `
+          ${records.length === 0 && absentRecords.length === 0 && sessionGroups.length === 0 ? `
             <div class="section-header">
               <h2 class="section-title">Attendance Records</h2>
               <span class="record-count">0 Records</span>

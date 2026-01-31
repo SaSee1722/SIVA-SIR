@@ -90,12 +90,8 @@ export default function StudentDashboardScreen() {
     }
   }, [editYear, availableClasses]);
 
-  const handleClassToggle = (className: string) => {
-    setEditClasses(prev =>
-      prev.includes(className)
-        ? prev.filter(c => c !== className)
-        : [...prev, className]
-    );
+  const handleClassSelect = (className: string) => {
+    setEditClasses([className]);
   };
 
   const handleSaveProfile = async () => {
@@ -112,6 +108,7 @@ export default function StudentDashboardScreen() {
         systemNumber: editSystemNumber,
       });
       setShowEditModal(false);
+      setShowYearPicker(false); // Reset year picker state
       showToast('Profile updated successfully!', 'success');
     } catch (error: any) {
       showToast(error.message || 'Failed to update profile', 'error');
@@ -183,23 +180,37 @@ export default function StudentDashboardScreen() {
     ]);
   };
 
-  const studentRecords = records.filter((r) => r.studentId === user?.id);
-  const totalSessionsCount = sessions.length;
+  // Filter data based on current classes
+  const studentClasses = useMemo(() =>
+    studentProfile.class ? studentProfile.class.split(',').map(s => s.trim()) : []
+    , [studentProfile.class]);
+
+  const relevantSessions = useMemo(() =>
+    sessions.filter(s => s.classFilter && studentClasses.includes(s.classFilter))
+    , [sessions, studentClasses]);
+
+  const relevantSessionIds = useMemo(() => new Set(relevantSessions.map(s => s.id)), [relevantSessions]);
+
+  const studentRecords = useMemo(() =>
+    records.filter((r) => r.studentId === user?.id && relevantSessionIds.has(r.sessionId))
+    , [records, user?.id, relevantSessionIds]);
+
+  const totalSessionsCount = relevantSessions.length;
   const presentCount = studentRecords.length;
   const absentCount = totalSessionsCount - presentCount;
 
-  const presentSessionIds = new Set(studentRecords.map(r => r.sessionId));
+  const presentSessionIds = useMemo(() => new Set(studentRecords.map(r => r.sessionId)), [studentRecords]);
 
   const statsModalData = useMemo(() => {
     switch (statsModalType) {
       case 'present':
-        return sessions.filter(s => presentSessionIds.has(s.id));
+        return relevantSessions.filter(s => presentSessionIds.has(s.id));
       case 'absent':
-        return sessions.filter(s => !presentSessionIds.has(s.id));
+        return relevantSessions.filter(s => !presentSessionIds.has(s.id));
       default:
-        return sessions;
+        return relevantSessions;
     }
-  }, [statsModalType, sessions, presentSessionIds]);
+  }, [statsModalType, relevantSessions, presentSessionIds]);
 
   if (!user || !studentProfile) return null;
 
@@ -457,6 +468,7 @@ export default function StudentDashboardScreen() {
                       key={y}
                       onPress={() => {
                         setEditYear(y);
+                        setEditClasses([]); // Clear classes when year changes to prevent mixing
                         setShowYearPicker(false);
                       }}
                       style={[
@@ -516,7 +528,7 @@ export default function StudentDashboardScreen() {
                         const isSelected = editClasses.includes(item.className);
                         return (
                           <Pressable
-                            onPress={() => handleClassToggle(item.className)}
+                            onPress={() => handleClassSelect(item.className)}
                             style={[
                               styles.classItem,
                               {

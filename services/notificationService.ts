@@ -9,6 +9,15 @@ import { Platform } from 'react-native';
 // Configure how notifications look when app is in foreground
 let activeSessionId: string | null = null;
 
+// Register notification categories
+Notifications.setNotificationCategoryAsync('session_created', [
+    {
+        identifier: 'join',
+        buttonTitle: 'Join Now',
+        options: { opensAppToForeground: true },
+    },
+]);
+
 Notifications.setNotificationHandler({
     handleNotification: async (notification) => {
         // Check if we should silence this notification

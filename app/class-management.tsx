@@ -101,17 +101,18 @@ export default function ClassManagementScreen() {
     const yearOptions = ['I YEAR', 'II YEAR', 'III YEAR', 'IV YEAR'];
 
     const loadClasses = useCallback(async () => {
+        if (!user?.id) return;
         try {
             setLoading(true);
-            const allClasses = await classService.getAllClasses();
-            setClasses(allClasses);
+            const staffClasses = await classService.getClassesByStaff(user.id);
+            setClasses(staffClasses);
         } catch (error) {
             console.error('Error loading classes:', error);
             showAlert('Error', 'Failed to load classes');
         } finally {
             setLoading(false);
         }
-    }, [showAlert]);
+    }, [showAlert, user?.id]);
 
     useEffect(() => {
         loadClasses();

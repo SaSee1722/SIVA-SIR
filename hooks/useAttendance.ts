@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { attendanceService } from '@/services/attendanceService';
 import { AttendanceSession, AttendanceRecord } from '@/types';
 
-export function useAttendance() {
+export function useAttendance(staffId?: string) {
   const [sessions, setSessions] = useState<AttendanceSession[]>([]);
   const [records, setRecords] = useState<AttendanceRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -12,10 +12,21 @@ export function useAttendance() {
     const loadData = async () => {
       setIsLoading(true);
       try {
-        const [loadedSessions, loadedRecords] = await Promise.all([
-          attendanceService.getAllSessions(),
-          attendanceService.getAllRecords(),
-        ]);
+        let loadedSessions: AttendanceSession[];
+        let loadedRecords: AttendanceRecord[];
+
+        if (staffId) {
+          [loadedSessions, loadedRecords] = await Promise.all([
+            attendanceService.getSessionsByStaff(staffId),
+            attendanceService.getRecordsByStaff(staffId),
+          ]);
+        } else {
+          [loadedSessions, loadedRecords] = await Promise.all([
+            attendanceService.getAllSessions(),
+            attendanceService.getAllRecords(),
+          ]);
+        }
+
         setSessions(loadedSessions);
         setRecords(loadedRecords);
       } catch (error) {
@@ -26,7 +37,7 @@ export function useAttendance() {
     };
 
     loadData();
-  }, [refreshCounter]);
+  }, [refreshCounter, staffId]);
 
   useEffect(() => {
     // Subscribe to real-time changes
