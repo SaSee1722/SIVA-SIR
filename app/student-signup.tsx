@@ -16,7 +16,7 @@ export default function StudentSignupScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [selectedClasses, setSelectedClasses] = useState<string[]>([]);
-  const [selectedYears, setSelectedYears] = useState<string[]>([]);
+  const [year, setYear] = useState('');
   const [rollNumber, setRollNumber] = useState('');
   const [systemNumber, setSystemNumber] = useState('');
   const [loading, setLoading] = useState(false);
@@ -51,23 +51,19 @@ export default function StudentSignupScreen() {
   }, [loadClasses]);
 
   useEffect(() => {
-    if (selectedYears.length > 0) {
-      const filtered = classes.filter(c => c.year && selectedYears.includes(c.year));
+    if (year) {
+      const filtered = classes.filter(c => c.year === year);
       setFilteredClasses(filtered);
       setSelectedClasses(prev => prev.filter(c => filtered.some(f => f.className === c)));
     } else {
       setFilteredClasses([]);
       setSelectedClasses([]);
     }
-  }, [selectedYears, classes]);
+  }, [year, classes]);
 
   const handleYearSelect = (selectedYear: string) => {
-    setSelectedYears(prev => {
-      if (prev.includes(selectedYear)) {
-        return prev.filter(y => y !== selectedYear);
-      }
-      return [...prev, selectedYear];
-    });
+    setYear(selectedYear);
+    setShowYearPicker(false);
   };
 
   const handleClassSelect = (className: string) => {
@@ -80,8 +76,8 @@ export default function StudentSignupScreen() {
   };
 
   const handleSignup = async () => {
-    if (!name || !email || !password || selectedClasses.length === 0 || selectedYears.length === 0 || !rollNumber || !systemNumber) {
-      showAlert('Error', 'Please fill in all fields (Select at least one year and one class)');
+    if (!name || !email || !password || selectedClasses.length === 0 || !year || !rollNumber || !systemNumber) {
+      showAlert('Error', 'Please fill in all fields (Select at least one class)');
       return;
     }
 
@@ -90,7 +86,7 @@ export default function StudentSignupScreen() {
       await signup(email, password, 'student', {
         name,
         class: selectedClasses.join(', '),
-        year: selectedYears.join(', '),
+        year,
         rollNumber,
         systemNumber,
       });
@@ -192,9 +188,9 @@ export default function StudentSignupScreen() {
               >
                 <Text style={[
                   styles.pickerText,
-                  { color: selectedYears.length > 0 ? colors.student.text : colors.student.textSecondary }
+                  { color: year ? colors.student.text : colors.student.textSecondary }
                 ]}>
-                  {selectedYears.length > 0 ? selectedYears.join(', ') : 'Select year(s)'}
+                  {year || 'Select your year'}
                 </Text>
                 <MaterialIcons name="arrow-drop-down" size={24} color={colors.student.textSecondary} />
               </Pressable>
@@ -205,19 +201,19 @@ export default function StudentSignupScreen() {
               <Text style={[styles.label, { color: colors.student.text }]}>Section / Class</Text>
               <Pressable
                 onPress={() => {
-                  if (selectedYears.length === 0) {
-                    showAlert('Info', 'Please select your Year(s) first');
+                  if (!year) {
+                    showAlert('Info', 'Please select your Year first');
                     return;
                   }
                   setShowClassPicker(true);
                 }}
-                disabled={selectedYears.length === 0}
+                disabled={!year}
                 style={[
                   styles.pickerButton,
                   {
-                    backgroundColor: selectedYears.length === 0 ? colors.common.gray100 : colors.student.surface,
+                    backgroundColor: !year ? colors.common.gray100 : colors.student.surface,
                     borderColor: colors.student.border,
-                    opacity: selectedYears.length === 0 ? 0.6 : 1,
+                    opacity: !year ? 0.6 : 1,
                   }
                 ]}
               >
@@ -227,7 +223,7 @@ export default function StudentSignupScreen() {
                 ]}>
                   {selectedClasses.length > 0
                     ? selectedClasses.join(', ')
-                    : (selectedYears.length > 0 ? 'Select section(s)' : 'Select year first')}
+                    : (year ? 'Select section(s)' : 'Select year first')}
                 </Text>
                 <MaterialIcons name="arrow-drop-down" size={24} color={colors.student.textSecondary} />
               </Pressable>
@@ -266,7 +262,7 @@ export default function StudentSignupScreen() {
             <View style={[styles.modalContent, { backgroundColor: colors.student.background }]}>
               <View style={styles.modalHeader}>
                 <Text style={[styles.modalTitle, { color: colors.student.text }]}>
-                  Select Your Year(s)
+                  Select Your Year
                 </Text>
                 <Pressable onPress={() => setShowYearPicker(false)} hitSlop={8}>
                   <MaterialIcons name="close" size={24} color={colors.student.text} />
@@ -290,10 +286,10 @@ export default function StudentSignupScreen() {
               ) : (
                 <FlatList
                   data={availableYears}
-                  extraData={selectedYears}
+                  extraData={year}
                   keyExtractor={(item) => item}
                   renderItem={({ item }) => {
-                    const isSelected = selectedYears.includes(item);
+                    const isSelected = year === item;
                     return (
                       <Pressable
                         onPress={() => handleYearSelect(item)}
@@ -318,10 +314,10 @@ export default function StudentSignupScreen() {
               )}
               <View style={styles.modalFooter}>
                 <Button
-                  title={selectedYears.length > 0 ? "Confirm Selection" : "Select Year(s)"}
+                  title={year ? "Confirm Selection" : "Select Year"}
                   onPress={() => setShowYearPicker(false)}
                   role="student"
-                  disabled={selectedYears.length === 0}
+                  disabled={!year}
                 />
               </View>
             </View>
@@ -339,7 +335,7 @@ export default function StudentSignupScreen() {
             <View style={[styles.modalContent, { backgroundColor: colors.student.background }]}>
               <View style={styles.modalHeader}>
                 <Text style={[styles.modalTitle, { color: colors.student.text }]}>
-                  Select Section(s) ({selectedYears.join(', ')})
+                  Select Section(s) ({year})
                 </Text>
                 <Pressable onPress={() => setShowClassPicker(false)} hitSlop={8}>
                   <MaterialIcons name="close" size={24} color={colors.student.text} />
