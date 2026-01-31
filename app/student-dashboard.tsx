@@ -37,7 +37,7 @@ export default function StudentDashboardScreen() {
 
   // Edit Profile States
   const [showEditModal, setShowEditModal] = useState(false);
-  const [editYear, setEditYear] = useState('');
+  const [editYears, setEditYears] = useState<string[]>([]);
   const [editClasses, setEditClasses] = useState<string[]>([]);
   const [availableClasses, setAvailableClasses] = useState<Class[]>([]);
   const [filteredClasses, setFilteredClasses] = useState<Class[]>([]);
@@ -75,35 +75,49 @@ export default function StudentDashboardScreen() {
   useEffect(() => {
     if (showEditModal) {
       loadAllClasses();
-      setEditYear(studentProfile.year || '');
+      setEditYears(studentProfile.year ? studentProfile.year.split(',').map(s => s.trim()) : []);
       setEditClasses(studentProfile.class ? studentProfile.class.split(',').map(s => s.trim()) : []);
       setEditSystemNumber(studentProfile.systemNumber || '');
     }
   }, [showEditModal, studentProfile, loadAllClasses]);
 
   useEffect(() => {
-    if (editYear) {
-      const filtered = availableClasses.filter(c => c.year === editYear);
+    if (editYears.length > 0) {
+      const filtered = availableClasses.filter(c => c.year && editYears.includes(c.year));
       setFilteredClasses(filtered);
     } else {
       setFilteredClasses([]);
     }
-  }, [editYear, availableClasses]);
+  }, [editYears, availableClasses]);
+
+  const handleYearSelect = (year: string) => {
+    setEditYears(prev => {
+      if (prev.includes(year)) {
+        return prev.filter(y => y !== year);
+      }
+      return [...prev, year];
+    });
+  };
 
   const handleClassSelect = (className: string) => {
-    setEditClasses([className]);
+    setEditClasses(prev => {
+      if (prev.includes(className)) {
+        return prev.filter(c => c !== className);
+      }
+      return [...prev, className];
+    });
   };
 
   const handleSaveProfile = async () => {
-    if (!editYear || editClasses.length === 0 || !editSystemNumber) {
-      showAlert('Error', 'Please select a year, at least one class, and enter system number');
+    if (editYears.length === 0 || editClasses.length === 0 || !editSystemNumber) {
+      showAlert('Error', 'Please select at least one year, at least one class, and enter system number');
       return;
     }
 
     setUpdating(true);
     try {
       await updateProfile({
-        year: editYear,
+        year: editYears.join(', '),
         class: editClasses.join(', '),
         systemNumber: editSystemNumber,
       });
@@ -462,47 +476,47 @@ export default function StudentDashboardScreen() {
             <View style={styles.modalBody}>
               {showYearPicker ? (
                 <>
-                  <Text style={styles.label}>Select Your Year</Text>
-                  {DEFAULT_YEARS.map(y => (
-                    <Pressable
-                      key={y}
-                      onPress={() => {
-                        setEditYear(y);
-                        setEditClasses([]); // Clear classes when year changes to prevent mixing
-                        setShowYearPicker(false);
-                      }}
-                      style={[
-                        styles.yearItem,
-                        {
-                          backgroundColor: editYear === y ? colors.student.surfaceLight : colors.common.white,
-                          borderColor: editYear === y ? colors.student.primary : colors.common.gray200,
-                        }
-                      ]}
-                    >
-                      <Text style={[styles.yearText, { color: editYear === y ? colors.student.primary : colors.student.text }]}>
-                        {y}
-                      </Text>
-                      {editYear === y && (
-                        <MaterialIcons name="check-circle" size={20} color={colors.student.primary} />
-                      )}
-                    </Pressable>
-                  ))}
+                  <Text style={styles.label}>Select Year(s)</Text>
+                  {DEFAULT_YEARS.map(y => {
+                    const isSelected = editYears.includes(y);
+                    return (
+                      <Pressable
+                        key={y}
+                        onPress={() => handleYearSelect(y)}
+                        style={[
+                          styles.yearItem,
+                          {
+                            backgroundColor: isSelected ? colors.student.surfaceLight : colors.common.white,
+                            borderColor: isSelected ? colors.student.primary : colors.common.gray200,
+                          }
+                        ]}
+                      >
+                        <Text style={[styles.yearText, { color: isSelected ? colors.student.primary : colors.student.text }]}>
+                          {y}
+                        </Text>
+                        {isSelected && (
+                          <MaterialIcons name="check-circle" size={20} color={colors.student.primary} />
+                        )}
+                      </Pressable>
+                    );
+                  })}
                   <Button
-                    title="Back"
+                    title="Confirm Years"
                     onPress={() => setShowYearPicker(false)}
-                    variant="secondary"
                     role="student"
                     style={{ marginTop: spacing.md }}
                   />
                 </>
               ) : (
                 <>
-                  <Text style={styles.label}>Academic Year</Text>
+                  <Text style={styles.label}>Academic Year(s)</Text>
                   <Pressable
                     onPress={() => setShowYearPicker(true)}
                     style={styles.pickerTrigger}
                   >
-                    <Text style={styles.pickerTriggerText}>{editYear || 'Select Year'}</Text>
+                    <Text style={styles.pickerTriggerText}>
+                      {editYears.length > 0 ? editYears.join(', ') : 'Select Year(s)'}
+                    </Text>
                     <MaterialIcons name="arrow-drop-down" size={24} color={colors.student.textSecondary} />
                   </Pressable>
 
@@ -515,13 +529,14 @@ export default function StudentDashboardScreen() {
                   />
 
                   <Text style={[styles.label, { marginTop: spacing.lg }]}>
-                    Your Classes ({editYear})
+                    Your Classes ({editYears.join(', ')})
                   </Text>
                   {filteredClasses.length === 0 ? (
-                    <Text style={styles.emptyText}>No classes found for this year. Please select year first.</Text>
+                    <Text style={styles.emptyText}>No classes found. Please select year(s) first.</Text>
                   ) : (
                     <FlatList
                       data={filteredClasses}
+                      extraData={editClasses}
                       keyExtractor={(item) => item.id}
                       style={{ maxHeight: 300 }}
                       renderItem={({ item }) => {
