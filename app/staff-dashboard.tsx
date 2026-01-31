@@ -406,12 +406,16 @@ export default function StaffDashboardScreen() {
     const calculateStats = async () => {
       // Global
       const totalPresent = records.length;
-      const uniqueStudents = new Set(records.map(r => r.studentId)).size;
 
       // We calculate total absents by summing each session's absentees
       const sessionAbsentsPromises = sessions.map(s => attendanceService.getAbsenteesBySession(s.id, s.classFilter));
       const absentsResults = await Promise.all(sessionAbsentsPromises);
       const totalAbsent = absentsResults.reduce((acc, curr) => acc + curr.length, 0);
+
+      const uniqueAttended = new Set(records.map(r => r.studentId));
+      const uniqueAbsent = new Set(absentsResults.flat().map(a => a.studentId));
+      const allUnique = new Set([...uniqueAttended, ...uniqueAbsent]);
+      const uniqueStudents = allUnique.size;
 
       setGlobalStats({
         sessions: sessions.length,
@@ -424,12 +428,15 @@ export default function StaffDashboardScreen() {
       if (startDate && endDate) {
         const rangeSessions = sessions.filter(s => s.date >= startDate && s.date <= endDate);
         const rangeRecords = records.filter(r => r.date >= startDate && r.date <= endDate);
-        const rangeUnique = new Set(rangeRecords.map(r => r.studentId)).size;
 
         const rangeAbsentsPromises = rangeSessions.map(s => attendanceService.getAbsenteesBySession(s.id, s.classFilter));
         const rangeAbsentsResults = await Promise.all(rangeAbsentsPromises);
         const rangeAbsent = rangeAbsentsResults.reduce((acc, curr) => acc + curr.length, 0);
 
+        const rangeUniqueAttended = new Set(rangeRecords.map(r => r.studentId));
+        const rangeUniqueAbsent = new Set(rangeAbsentsResults.flat().map(a => a.studentId));
+        const allRangeUnique = new Set([...rangeUniqueAttended, ...rangeUniqueAbsent]);
+        const rangeUnique = allRangeUnique.size;
         setRangeStats({
           sessions: rangeSessions.length,
           present: rangeRecords.length,
