@@ -196,11 +196,12 @@ export const classService = {
 
         if (error) throw error;
 
-        // Precise matching in JS
+        // Precise matching in JS (case-insensitive & trimmed)
+        const targetClass = className.trim().toLowerCase();
         const count = (data || []).filter(student => {
             if (!student.class) return false;
-            const studentClasses = student.class.split(',').map((c: string) => c.trim());
-            return studentClasses.includes(className);
+            const studentClasses = student.class.split(',').map((c: string) => c.trim().toLowerCase());
+            return studentClasses.includes(targetClass);
         }).length;
 
         return count;
@@ -218,11 +219,12 @@ export const classService = {
 
         if (error) throw error;
 
-        // Precise matching in JS
+        // Precise matching in JS (case-insensitive & trimmed)
+        const targetClass = className.trim().toLowerCase();
         const matchedStudents = (data || []).filter(student => {
             if (!student.class) return false;
-            const studentClasses = student.class.split(',').map((c: string) => c.trim());
-            return studentClasses.includes(className);
+            const studentClasses = student.class.split(',').map((c: string) => c.trim().toLowerCase());
+            return studentClasses.includes(targetClass);
         });
 
         return matchedStudents.map(s => ({

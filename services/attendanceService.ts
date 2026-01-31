@@ -412,12 +412,15 @@ export const attendanceService = {
         // Must not have attended
         if (attendedIds.includes(student.id)) return false;
 
-        // If no filter, include all students
-        if (!className || className === 'All Classes') return true;
+        // Precise matching for comma-separated class list (case-insensitive & trimmed)
+        // If className is not provided or 'All Classes', this filter will effectively return false
+        // unless a student's class list contains an empty string or 'all classes' which is unlikely.
+        // The caller should handle the 'All Classes' case by not passing a className.
+        if (!className || className === 'All Classes') return true; // Keep this for 'All Classes' behavior
 
-        // Precise matching for comma-separated class list
-        const studentClasses = student.class ? student.class.split(',').map((c: string) => c.trim()) : [];
-        return studentClasses.includes(className);
+        const targetClass = className.trim().toLowerCase();
+        const studentClasses = student.class ? student.class.split(',').map((c: string) => c.trim().toLowerCase()) : [];
+        return studentClasses.includes(targetClass);
       })
       .map(student => ({
         studentId: student.id,
@@ -441,13 +444,13 @@ export const attendanceService = {
 
     if (studentsError) throw studentsError;
 
-    // Filter students precisely
+    // Filter students precisely (case-insensitive & trimmed)
+    const targetClass = className.trim().toLowerCase();
     const allStudents = (allStudentsData || []).filter(student => {
       if (!student.class) return false;
-      const studentClasses = student.class.split(',').map((c: string) => c.trim());
-      return studentClasses.includes(className);
+      const studentClasses = student.class.split(',').map((c: string) => c.trim().toLowerCase());
+      return studentClasses.includes(targetClass);
     });
-
     // Get all sessions in the date range (or all sessions)
     let sessionsQuery = supabase
       .from('attendance_sessions')

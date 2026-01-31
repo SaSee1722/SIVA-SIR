@@ -271,7 +271,7 @@ export default function StaffDashboardScreen() {
       if (!session) return;
 
       const sessionRecords = getSessionRecords(sessionId);
-      const absentRecords = await attendanceService.getAbsenteesBySession(sessionId);
+      const absentRecords = await attendanceService.getAbsenteesBySession(sessionId, session.classFilter);
 
       const total = sessionRecords.length + absentRecords.length;
       const rate = total > 0 ? ((sessionRecords.length / total) * 100).toFixed(1) : '0.0';
