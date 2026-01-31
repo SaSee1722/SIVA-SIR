@@ -189,15 +189,21 @@ export const classService = {
     async getClassStudentCount(className: string): Promise<number> {
         const supabase = getSharedSupabaseClient();
 
-        const { count, error } = await supabase
+        const { data, error } = await supabase
             .from('profiles')
-            .select('*', { count: 'exact', head: true })
-            .eq('role', 'student')
-            .ilike('class', `%${className}%`);
+            .select('class')
+            .eq('role', 'student');
 
         if (error) throw error;
 
-        return count || 0;
+        // Precise matching in JS
+        const count = (data || []).filter(student => {
+            if (!student.class) return false;
+            const studentClasses = student.class.split(',').map((c: string) => c.trim());
+            return studentClasses.includes(className);
+        }).length;
+
+        return count;
     },
 
     // Get students in a class
@@ -208,12 +214,18 @@ export const classService = {
             .from('profiles')
             .select('id, name, email, roll_number, class, year')
             .eq('role', 'student')
-            .ilike('class', `%${className}%`)
             .order('roll_number', { ascending: true });
 
         if (error) throw error;
 
-        return (data || []).map(s => ({
+        // Precise matching in JS
+        const matchedStudents = (data || []).filter(student => {
+            if (!student.class) return false;
+            const studentClasses = student.class.split(',').map((c: string) => c.trim());
+            return studentClasses.includes(className);
+        });
+
+        return matchedStudents.map(s => ({
             id: s.id,
             name: s.name,
             email: s.email,

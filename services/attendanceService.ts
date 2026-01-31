@@ -399,23 +399,32 @@ export const attendanceService = {
       .select('id, name, roll_number, system_number, class')
       .eq('role', 'student');
 
-    if (className) {
-      query = query.ilike('class', `%${className}%`);
-    }
-
+    // We fetch students who might match and filter precisely in JS
     const { data: allStudents, error: studentsError } = await query;
 
     if (studentsError) throw studentsError;
 
-    // Filter out students who attended
+    // Filter students: 
+    // 1. Must not have attended
+    // 2. If className is provided, must be enrolled in that specific class
     const absentees = (allStudents || [])
-      .filter(student => !attendedIds.includes(student.id))
+      .filter(student => {
+        // Must not have attended
+        if (attendedIds.includes(student.id)) return false;
+
+        // If no filter, include all students
+        if (!className || className === 'All Classes') return true;
+
+        // Precise matching for comma-separated class list
+        const studentClasses = student.class ? student.class.split(',').map((c: string) => c.trim()) : [];
+        return studentClasses.includes(className);
+      })
       .map(student => ({
         studentId: student.id,
         studentName: student.name,
         rollNumber: student.roll_number,
         systemNumber: student.system_number,
-        class: student.class,
+        class: className && className !== 'All Classes' ? className : student.class,
       }));
 
     return absentees;
