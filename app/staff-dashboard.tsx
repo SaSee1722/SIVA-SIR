@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Pressable, FlatList, RefreshControl, Modal, TextInput } from 'react-native';
+import { View, Text, StyleSheet, Pressable, FlatList, RefreshControl, Modal, TextInput, ScrollView } from 'react-native';
 import { getSharedSupabaseClient } from '@/template/core/client';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useAuth } from '@/hooks/useAuth';
 import { useFiles } from '@/hooks/useFiles';
@@ -11,7 +11,7 @@ import { FileList } from '@/components/feature/FileList';
 import { QRCodeDisplay } from '@/components/feature/QRCodeDisplay';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { AttendanceRecord } from '@/types';
+import { AttendanceRecord, User } from '@/types';
 import { colors, typography, borderRadius, spacing, shadows } from '@/constants/theme';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
@@ -20,9 +20,10 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { pdfReportService } from '@/services/pdfReportService';
 import { attendanceService } from '@/services/attendanceService';
 import { classService } from '@/services/classService';
+import { authService } from '@/services/authService'; // Added authService
 import { Class } from '@/types';
 
-type ViewMode = 'files' | 'qr' | 'attendance' | 'classes';
+type ViewMode = 'files' | 'qr' | 'attendance' | 'classes' | 'students';
 type AttendanceViewMode = 'session' | 'date-range';
 
 export default function StaffDashboardScreen() {
@@ -61,12 +62,18 @@ export default function StaffDashboardScreen() {
   const [previewData, setPreviewData] = useState<any>(null);
   const [globalStats, setGlobalStats] = useState({ sessions: 0, present: 0, absent: 0, uniqueStudents: 0 });
   const [rangeStats, setRangeStats] = useState({ sessions: 0, present: 0, absent: 0, uniqueStudents: 0 });
+  const [allStudents, setAllStudents] = useState<User[]>([]);
+  const [showManualMarkModal, setShowManualMarkModal] = useState(false);
+  const [manualMarkStudents, setManualMarkStudents] = useState<User[]>([]);
+  const [selectedManualStudents, setSelectedManualStudents] = useState<Set<string>>(new Set());
+  const [manualMarkStatus, setManualMarkStatus] = useState<'present' | 'on_duty'>('present');
+  const [loadingManualStudents, setLoadingManualStudents] = useState(false);
 
   const activeSession = sessions.find((s) => s.isActive);
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    await Promise.all([refreshFiles(), refreshAttendance(), loadClasses()]);
+    await Promise.all([refreshFiles(), refreshAttendance(), loadClasses(), loadAllStudents()]);
     setRefreshing(false);
   };
 
@@ -74,15 +81,59 @@ export default function StaffDashboardScreen() {
     if (user?.id) {
       try {
         const classes = await classService.getClassesByStaff(user.id);
-        setAvailableClasses(classes);
+
+        // Fetch student count for each class
+        const classesWithCounts = await Promise.all(
+          classes.map(async (classItem) => {
+            try {
+              const count = await classService.getClassStudentCount(classItem.className);
+
+              // Parse className to extract department and year
+              // Format: "II CSE B - DBMS" -> department: "CSE", year: "II YEAR"
+              const parts = classItem.className.split('-');
+              const firstPart = parts[0]?.trim() || '';
+              const department = firstPart.match(/CSE|ECE|EEE|MECH|CIVIL/i)?.[0] || 'CSE';
+              const year = firstPart.match(/I{1,3}\s/)?.[0]?.trim() || 'II';
+
+              return {
+                ...classItem,
+                name: classItem.className,
+                department: `${department} Department`,
+                year: `${year} YEAR`,
+                studentCount: count,
+              };
+            } catch (error) {
+              console.error(`Error loading count for class ${classItem.className}:`, error);
+              return {
+                ...classItem,
+                name: classItem.className,
+                department: 'CSE Department',
+                year: 'II YEAR',
+                studentCount: 0,
+              };
+            }
+          })
+        );
+
+        setAvailableClasses(classesWithCounts);
       } catch (error) {
         console.error('Error loading classes:', error);
       }
     }
   };
 
+  const loadAllStudents = async () => {
+    try {
+      const users = await authService.getAllUsers();
+      setAllStudents(users.filter(u => u.role === 'student'));
+    } catch (error) {
+      console.error('Error loading students:', error);
+    }
+  };
+
   React.useEffect(() => {
     loadClasses();
+    loadAllStudents();
   }, [user?.id]);
 
   React.useEffect(() => {
@@ -90,6 +141,15 @@ export default function StaffDashboardScreen() {
       classService.getClassStudentCount(activeSession.classFilter).then(setClassTotalStudents);
     }
   }, [activeSession?.id]);
+
+  // Reload classes when screen comes into focus (e.g., after creating a new class)
+  useFocusEffect(
+    React.useCallback(() => {
+      if (user?.id) {
+        loadClasses();
+      }
+    }, [user?.id])
+  );
 
   const handleCreateSession = async () => {
     if (!sessionName.trim()) {
@@ -397,6 +457,154 @@ export default function StaffDashboardScreen() {
     }
   }, [selectedSessionId, attendanceViewMode]);
 
+  const handleApproveStudent = async (studentId: string) => {
+    try {
+      await authService.updateProfile(studentId, { isApproved: true });
+      showToast('Student approved successfully', 'success');
+      loadAllStudents();
+    } catch (error: any) {
+      showAlert('Error', error.message || 'Failed to approve student');
+    }
+  };
+
+  const handleOpenManualMark = async () => {
+    if (!activeSession) return;
+
+    try {
+      setLoadingManualStudents(true);
+      const supabase = getSharedSupabaseClient();
+
+      // Get students from the selected class
+      let query = supabase
+        .from('profiles')
+        .select('*')
+        .eq('role', 'student');
+
+      const { data, error } = await query;
+      if (error) throw error;
+
+      // Filter by class if specified
+      let students = data || [];
+      if (activeSession.classFilter && activeSession.classFilter !== 'All Classes') {
+        const targetClass = activeSession.classFilter.trim().toLowerCase();
+        students = students.filter(s => {
+          if (!s.class) return false;
+          const studentClasses = s.class.split(',').map((c: string) => c.trim().toLowerCase());
+          return studentClasses.includes(targetClass);
+        });
+      }
+
+      // Get already marked students
+      const sessionRecords = getSessionRecords(activeSession.id);
+      const markedIds = new Set(sessionRecords.map(r => r.studentId));
+
+      // Filter out already marked students
+      const unmarkedStudents = students.filter(s => !markedIds.has(s.id));
+
+      console.log('Total students:', students.length);
+      console.log('Unmarked students:', unmarkedStudents.length);
+      console.log('First student data:', unmarkedStudents[0]);
+
+      const mappedStudents = unmarkedStudents.map(s => ({
+        id: s.id,
+        email: s.email || '',
+        role: s.role as 'student',
+        name: s.name || 'Unknown',
+        class: s.class || '',
+        year: s.year || '',
+        rollNumber: s.roll_number || '',
+        systemNumber: s.system_number || '',
+        isApproved: s.is_approved || false,
+        deviceId: s.device_id || null,
+        createdAt: s.created_at || new Date().toISOString(),
+      }));
+
+      console.log('Mapped students:', mappedStudents.length);
+      console.log('Mapped students data:', JSON.stringify(mappedStudents, null, 2));
+
+      setManualMarkStudents(mappedStudents);
+      setSelectedManualStudents(new Set());
+      setLoadingManualStudents(false);
+      setShowManualMarkModal(true);
+    } catch (error: any) {
+      console.error('Error loading students:', error);
+      setLoadingManualStudents(false);
+      showAlert('Error', error.message || 'Failed to load students');
+    }
+  };
+
+  const handleManualMark = async () => {
+    if (!activeSession || !user?.id || selectedManualStudents.size === 0) return;
+
+    try {
+      const studentsToMark = manualMarkStudents.filter(s => selectedManualStudents.has(s.id));
+
+      for (const student of studentsToMark) {
+        await attendanceService.markManualAttendance(
+          activeSession.id,
+          activeSession.sessionName,
+          student.id,
+          student.name,
+          student.rollNumber || '',
+          student.class || '',
+          user.id,
+          manualMarkStatus,
+          student.systemNumber
+        );
+      }
+
+      showAlert('Success', `Marked ${studentsToMark.length} student(s) as ${manualMarkStatus === 'on_duty' ? 'On Duty' : 'Present'}`);
+      setShowManualMarkModal(false);
+      setSelectedManualStudents(new Set());
+      await refreshAttendance();
+    } catch (error: any) {
+      showAlert('Error', error.message || 'Failed to mark attendance');
+    }
+  };
+
+  const toggleManualStudent = (studentId: string) => {
+    const newSet = new Set(selectedManualStudents);
+    if (newSet.has(studentId)) {
+      newSet.delete(studentId);
+    } else {
+      newSet.add(studentId);
+    }
+    setSelectedManualStudents(newSet);
+  };
+
+  const selectAllManualStudents = () => {
+    if (selectedManualStudents.size === manualMarkStudents.length) {
+      setSelectedManualStudents(new Set());
+    } else {
+      setSelectedManualStudents(new Set(manualMarkStudents.map(s => s.id)));
+    }
+  };
+
+  const handleResetDeviceId = async (studentId: string) => {
+    showAlert('Reset Device', 'Are you sure you want to reset this student\'s device binding? They will be able to bind a new device on their next attendance mark.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Reset',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await authService.updateProfile(studentId, { deviceId: null });
+            showToast('Device binding reset successfully', 'success');
+            loadAllStudents();
+          } catch (error: any) {
+            showAlert('Error', error.message || 'Failed to reset device');
+          }
+        }
+      }
+    ]);
+  };
+
+  const showToast = (message: string, type: 'success' | 'error' = 'success') => {
+    // Helper to match style of student-dashboard if we have a toast hook, 
+    // but here we can just use showAlert or similar
+    showAlert(type === 'success' ? 'Success' : 'Error', message);
+  };
+
   // Auto-load date range records when dates change
   React.useEffect(() => {
     if (attendanceViewMode === 'date-range' && startDate && endDate) {
@@ -560,6 +768,15 @@ export default function StaffDashboardScreen() {
             </View>
 
             <Button
+              title="Manual Mark (Emergency)"
+              onPress={handleOpenManualMark}
+              role="staff"
+              variant="secondary"
+              style={{ marginTop: spacing.md }}
+              icon={<MaterialIcons name="edit" size={18} color={colors.staff.primary} />}
+            />
+
+            <Button
               title="End Session"
               onPress={handleDeactivateSession}
               variant="secondary"
@@ -618,6 +835,169 @@ export default function StaffDashboardScreen() {
                   onPress={() => setShowEndSessionSummary(false)}
                   role="staff"
                   style={{ marginTop: spacing.xl }}
+                />
+              </View>
+            </View>
+          </View>
+        </Modal>
+
+        {/* Manual Attendance Marking Modal */}
+        <Modal
+          visible={showManualMarkModal}
+          transparent
+          animationType="slide"
+          onRequestClose={() => setShowManualMarkModal(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={[styles.modalContent, { backgroundColor: colors.common.white, maxHeight: '85%' }]}>
+              <View style={styles.modalHeader}>
+                <View>
+                  <Text style={[styles.modalTitle, { color: colors.staff.text }]}>Manual Attendance</Text>
+                  <Text style={[styles.modalSubtitle, { marginTop: 4 }]}>
+                    {manualMarkStudents.length} student(s) available
+                  </Text>
+                </View>
+                <Pressable onPress={() => setShowManualMarkModal(false)} hitSlop={8}>
+                  <MaterialIcons name="close" size={24} color={colors.staff.text} />
+                </Pressable>
+              </View>
+
+              {/* Status Toggle */}
+              <View style={styles.statusToggleContainer}>
+                <Text style={[styles.label, { color: colors.staff.text, marginBottom: spacing.sm }]}>
+                  Mark as:
+                </Text>
+                <View style={styles.statusToggle}>
+                  <Pressable
+                    onPress={() => setManualMarkStatus('present')}
+                    style={[
+                      styles.statusToggleButton,
+                      manualMarkStatus === 'present' && styles.statusToggleButtonActive,
+                    ]}
+                  >
+                    <MaterialIcons
+                      name="check-circle"
+                      size={20}
+                      color={manualMarkStatus === 'present' ? colors.common.white : colors.staff.textSecondary}
+                    />
+                    <Text
+                      style={[
+                        styles.statusToggleText,
+                        { color: manualMarkStatus === 'present' ? colors.common.white : colors.staff.textSecondary },
+                      ]}
+                    >
+                      Present
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => setManualMarkStatus('on_duty')}
+                    style={[
+                      styles.statusToggleButton,
+                      manualMarkStatus === 'on_duty' && styles.statusToggleButtonActive,
+                    ]}
+                  >
+                    <MaterialIcons
+                      name="work"
+                      size={20}
+                      color={manualMarkStatus === 'on_duty' ? colors.common.white : colors.staff.textSecondary}
+                    />
+                    <Text
+                      style={[
+                        styles.statusToggleText,
+                        { color: manualMarkStatus === 'on_duty' ? colors.common.white : colors.staff.textSecondary },
+                      ]}
+                    >
+                      On Duty
+                    </Text>
+                  </Pressable>
+                </View>
+              </View>
+
+              {/* Select All */}
+              <Pressable
+                onPress={selectAllManualStudents}
+                style={styles.selectAllButton}
+              >
+                <MaterialIcons
+                  name={selectedManualStudents.size === manualMarkStudents.length ? "check-box" : "check-box-outline-blank"}
+                  size={24}
+                  color={colors.staff.primary}
+                />
+                <Text style={[styles.selectAllText, { color: colors.staff.primary }]}>
+                  {selectedManualStudents.size === manualMarkStudents.length ? 'Deselect All' : 'Select All'}
+                </Text>
+              </Pressable>
+
+              {/* Student List */}
+              {loadingManualStudents ? (
+                <View style={[styles.emptyContainer, { marginTop: spacing.xl }]}>
+                  <Text style={[styles.emptyText, { color: colors.staff.text }]}>
+                    Loading students...
+                  </Text>
+                </View>
+              ) : manualMarkStudents.length === 0 ? (
+                <View style={[styles.emptyContainer, { marginTop: spacing.xl }]}>
+                  <MaterialIcons name="check-circle" size={48} color="#10B981" />
+                  <Text style={[styles.emptyText, { color: colors.staff.text }]}>
+                    All students have been marked!
+                  </Text>
+                </View>
+              ) : (
+                <FlatList
+                  data={manualMarkStudents}
+                  keyExtractor={(item) => item.id}
+                  style={{ flex: 1, marginTop: spacing.md }}
+                  contentContainerStyle={{ paddingBottom: spacing.md }}
+                  showsVerticalScrollIndicator={false}
+                  renderItem={({ item: student }) => (
+                    <Pressable
+                      onPress={() => toggleManualStudent(student.id)}
+                      style={[
+                        styles.manualStudentCard,
+                        {
+                          backgroundColor: selectedManualStudents.has(student.id)
+                            ? colors.staff.surfaceLight
+                            : colors.common.white,
+                          borderColor: selectedManualStudents.has(student.id)
+                            ? colors.staff.primary
+                            : colors.staff.border,
+                          marginBottom: spacing.sm,
+                        },
+                      ]}
+                    >
+                      <MaterialIcons
+                        name={selectedManualStudents.has(student.id) ? "check-circle" : "radio-button-unchecked"}
+                        size={24}
+                        color={selectedManualStudents.has(student.id) ? colors.staff.primary : colors.staff.border}
+                      />
+                      <View style={{ flex: 1, marginLeft: spacing.md }}>
+                        <Text style={[styles.studentName, { color: colors.staff.text }]}>
+                          {student.name}
+                        </Text>
+                        <Text style={[styles.studentMeta, { color: colors.staff.textSecondary }]}>
+                          {student.rollNumber} • {student.class}
+                        </Text>
+                      </View>
+                    </Pressable>
+                  )}
+                />
+              )}
+
+              {/* Action Buttons */}
+              <View style={styles.modalFooter}>
+                <Button
+                  title="Cancel"
+                  onPress={() => setShowManualMarkModal(false)}
+                  variant="secondary"
+                  role="staff"
+                  style={{ flex: 1, marginRight: spacing.sm }}
+                />
+                <Button
+                  title={`Mark ${selectedManualStudents.size} Student(s)`}
+                  onPress={handleManualMark}
+                  role="staff"
+                  disabled={selectedManualStudents.size === 0}
+                  style={{ flex: 1 }}
                 />
               </View>
             </View>
@@ -723,57 +1103,58 @@ export default function StaffDashboardScreen() {
           <View style={styles.filterForm}>
             <View style={styles.pickerContainer}>
               <Text style={[styles.label, { color: colors.staff.text }]}>Select Session</Text>
-              <FlatList
-                data={sessions}
-                keyExtractor={(item) => item.id}
-                scrollEnabled={false}
-                renderItem={({ item }) => (
-                  <View
-                    style={[
-                      styles.sessionItem,
-                      {
-                        backgroundColor:
-                          selectedSessionId === item.id
-                            ? colors.staff.surfaceLight
-                            : colors.staff.surface,
-                        borderColor: colors.staff.border,
-                        borderWidth: 1,
-                      },
-                    ]}
-                  >
-                    <Pressable
-                      onPress={() => setSelectedSessionId(item.id)}
-                      style={styles.sessionInfo}
+              <View style={{ gap: spacing.xs }}>
+                {sessions.length > 0 ? (
+                  sessions.map((item) => (
+                    <View
+                      key={item.id}
+                      style={[
+                        styles.sessionItem,
+                        {
+                          backgroundColor:
+                            selectedSessionId === item.id
+                              ? colors.staff.surfaceLight
+                              : colors.staff.surface,
+                          borderColor: colors.staff.border,
+                          borderWidth: 1,
+                        },
+                      ]}
                     >
-                      <Text style={[styles.sessionName, { color: colors.staff.text }]}>
-                        {item.sessionName}
-                      </Text>
-                      <Text style={[styles.sessionDate, { color: colors.staff.textSecondary }]}>
-                        {item.date} • {item.time}
-                      </Text>
-                    </Pressable>
-                    <View style={styles.sessionActions}>
                       <Pressable
-                        onPress={() => handlePreviewSession(item.id)}
-                        style={{ marginRight: spacing.sm }}
+                        onPress={() => setSelectedSessionId(item.id)}
+                        style={styles.sessionInfo}
                       >
-                        <MaterialIcons name="visibility" size={24} color={colors.staff.primary} />
+                        <Text style={[styles.sessionName, { color: colors.staff.text }]}>
+                          {item.sessionName}
+                        </Text>
+                        <Text style={[styles.sessionDate, { color: colors.staff.textSecondary }]}>
+                          {item.date} • {item.time}
+                        </Text>
                       </Pressable>
-                      <Pressable
-                        onPress={() => handleDownloadSessionReport(item.id, item.sessionName)}
-                        style={({ pressed }) => [
-                          styles.sessionDownloadButton,
-                          { backgroundColor: colors.staff.primary },
-                          pressed && styles.pressed,
-                        ]}
-                      >
-                        <MaterialIcons name="download" size={18} color={colors.common.white} />
-                      </Pressable>
+                      <View style={styles.sessionActions}>
+                        <Pressable
+                          onPress={() => handlePreviewSession(item.id)}
+                          style={{ marginRight: spacing.sm }}
+                        >
+                          <MaterialIcons name="visibility" size={24} color={colors.staff.primary} />
+                        </Pressable>
+                        <Pressable
+                          onPress={() => handleDownloadSessionReport(item.id, item.sessionName)}
+                          style={({ pressed }) => [
+                            styles.sessionDownloadButton,
+                            { backgroundColor: colors.staff.primary },
+                            pressed && styles.pressed,
+                          ]}
+                        >
+                          <MaterialIcons name="download" size={18} color={colors.common.white} />
+                        </Pressable>
+                      </View>
                     </View>
-                  </View>
+                  ))
+                ) : (
+                  <Text style={styles.emptyText}>No sessions found</Text>
                 )}
-                ItemSeparatorComponent={() => <View style={{ height: spacing.xs }} />}
-              />
+              </View>
             </View>
           </View>
         )}
@@ -972,23 +1353,177 @@ export default function StaffDashboardScreen() {
     );
   };
 
+  const renderStudentsView = () => (
+    <View style={styles.section}>
+      <View style={styles.sectionHeaderRow}>
+        <Text style={[styles.sectionTitle, { color: colors.staff.text }]}>
+          Student Approvals
+        </Text>
+        <View style={styles.countBadge}>
+          <Text style={styles.countText}>{allStudents.length}</Text>
+        </View>
+      </View>
+
+      <View style={styles.studentFilterBar}>
+        <MaterialIcons name="search" size={20} color={colors.staff.textSecondary} />
+        <TextInput
+          style={styles.studentSearchInput}
+          placeholder="Search by name or roll number..."
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+        />
+      </View>
+
+      <View>
+        {allStudents.filter(s =>
+          s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          s.rollNumber?.toLowerCase().includes(searchQuery.toLowerCase())
+        ).length > 0 ? (
+          allStudents.filter(s =>
+            s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            s.rollNumber?.toLowerCase().includes(searchQuery.toLowerCase())
+          ).map((item) => (
+            <View key={item.id} style={[styles.studentCard, { backgroundColor: colors.staff.surface, borderColor: colors.staff.border }]}>
+              <View style={styles.studentCardHeader}>
+                <View style={styles.studentAvatar}>
+                  <Text style={styles.studentAvatarText}>{item.name.charAt(0)}</Text>
+                </View>
+                <View style={{ flex: 1, marginLeft: spacing.md }}>
+                  <Text style={styles.studentName}>{item.name}</Text>
+                  <Text style={styles.studentMeta}>{item.rollNumber} • {item.class}</Text>
+                </View>
+                <View style={[styles.approvalStatus, { backgroundColor: item.isApproved ? '#DEF7EC' : '#FDE8E8' }]}>
+                  <Text style={[styles.approvalStatusText, { color: item.isApproved ? '#03543F' : '#9B1C1C' }]}>
+                    {item.isApproved ? 'Approved' : 'Pending'}
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.studentCardInfo}>
+                <View style={styles.infoRow}>
+                  <MaterialIcons name="phonelink-lock" size={16} color={colors.staff.textSecondary} />
+                  <Text style={styles.infoRowText}>
+                    Device: {item.deviceId ? 'Bound' : 'Not Bound'}
+                  </Text>
+                </View>
+                <View style={styles.infoRow}>
+                  <MaterialIcons name="email" size={16} color={colors.staff.textSecondary} />
+                  <Text style={styles.infoRowText}>{item.email}</Text>
+                </View>
+              </View>
+
+              <View style={styles.studentCardActions}>
+                {!item.isApproved && (
+                  <Button
+                    title="Approve"
+                    onPress={() => handleApproveStudent(item.id)}
+                    role="staff"
+                    style={{ flex: 1, marginRight: spacing.sm }}
+                    icon={<MaterialIcons name="check" size={18} color="white" />}
+                  />
+                )}
+                {item.deviceId && (
+                  <Button
+                    title="Reset Device"
+                    onPress={() => handleResetDeviceId(item.id)}
+                    role="staff"
+                    variant="secondary"
+                    style={{ flex: 1 }}
+                    icon={<MaterialIcons name="refresh" size={18} color={colors.staff.primary} />}
+                  />
+                )}
+              </View>
+            </View>
+          ))
+        ) : (
+          <View style={styles.emptyContainer}>
+            <MaterialIcons name="group-off" size={48} color={colors.staff.border} />
+            <Text style={styles.emptyText}>No students found</Text>
+          </View>
+        )}
+      </View>
+    </View>
+  );
+
   const renderClassesView = () => (
     <View style={styles.section}>
       <Text style={[styles.sectionTitle, { color: colors.staff.text }]}>
         Class Management
       </Text>
-      <View style={[styles.infoCard, { backgroundColor: colors.staff.surface, borderColor: colors.staff.border }]}>
-        <MaterialIcons name="school" size={48} color={colors.staff.primary} style={{ alignSelf: 'center', marginBottom: spacing.md }} />
-        <Text style={[styles.infoText, { color: colors.staff.text }]}>
-          Manage your classes, students, and academic year settings from here.
-        </Text>
-        <Button
-          title="Go to Class Management"
-          onPress={() => router.push('/class-management')}
-          role="staff"
-          style={{ marginTop: spacing.lg }}
-        />
-      </View>
+
+      {/* Create New Class Button */}
+      <Button
+        title="+ Create New Class"
+        onPress={() => router.push('/class-management')}
+        role="staff"
+        style={{ marginBottom: spacing.lg }}
+      />
+
+      {/* Recent Classes List */}
+      {availableClasses.length === 0 ? (
+        <View style={[styles.infoCard, { backgroundColor: colors.staff.surface, borderColor: colors.staff.border }]}>
+          <MaterialIcons name="school" size={48} color={colors.staff.primary} style={{ alignSelf: 'center', marginBottom: spacing.md }} />
+          <Text style={[styles.infoText, { color: colors.staff.text, textAlign: 'center' }]}>
+            No classes created yet. Create your first class to get started.
+          </Text>
+        </View>
+      ) : (
+        <View style={{ gap: spacing.md }}>
+          <Text style={[styles.subsectionTitle, { color: colors.staff.textSecondary }]}>
+            Recent Classes ({availableClasses.length})
+          </Text>
+          {availableClasses.map((classItem) => (
+            <View
+              key={classItem.id}
+              style={[
+                styles.classCard,
+                {
+                  backgroundColor: colors.common.white,
+                  borderColor: colors.staff.border,
+                }
+              ]}
+            >
+              <View style={styles.classCardHeader}>
+                <View style={[styles.classIcon, { backgroundColor: colors.staff.primary + '15' }]}>
+                  <MaterialIcons name="school" size={24} color={colors.staff.primary} />
+                </View>
+                <View style={{ flex: 1, marginLeft: spacing.md }}>
+                  <Text style={[styles.className, { color: colors.staff.text }]}>
+                    {classItem.name}
+                  </Text>
+                  <Text style={[styles.classDetails, { color: colors.staff.textSecondary }]}>
+                    {classItem.department} • {classItem.year}
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.classCardFooter}>
+                <View style={styles.studentCount}>
+                  <MaterialIcons name="people" size={16} color={colors.staff.textSecondary} />
+                  <Text style={[styles.studentCountText, { color: colors.staff.textSecondary }]}>
+                    {classItem.studentCount || 0} students
+                  </Text>
+                </View>
+                <Pressable
+                  onPress={() => {
+                    // Navigate to class management with this class selected
+                    router.push({
+                      pathname: '/class-management',
+                      params: { classId: classItem.id, className: classItem.name }
+                    });
+                  }}
+                  style={styles.viewStudentsBtn}
+                >
+                  <Text style={[styles.viewStudentsText, { color: colors.staff.primary }]}>
+                    View Students
+                  </Text>
+                  <MaterialIcons name="chevron-right" size={18} color={colors.staff.primary} />
+                </Pressable>
+              </View>
+            </View>
+          ))}
+        </View>
+      )}
     </View>
   );
 
@@ -1012,9 +1547,32 @@ export default function StaffDashboardScreen() {
               </Text>
             )}
           </View>
-          <Pressable onPress={handleLogout} style={styles.logoutButton} hitSlop={8}>
-            <MaterialIcons name="logout" size={24} color={colors.staff.text} />
-          </Pressable>
+          <View style={styles.headerActions}>
+            <Pressable
+              onPress={() => setViewMode('students')}
+              style={[
+                styles.headerIconBtn,
+                viewMode === 'students' && { backgroundColor: colors.staff.surfaceLight, borderColor: colors.staff.primary }
+              ]}
+              hitSlop={8}
+            >
+              <MaterialIcons
+                name="group"
+                size={24}
+                color={viewMode === 'students' ? colors.staff.primary : colors.staff.text}
+              />
+              {allStudents.filter(s => !s.isApproved).length > 0 && (
+                <View style={styles.headerBadge}>
+                  <Text style={styles.headerBadgeText}>
+                    {allStudents.filter(s => !s.isApproved).length}
+                  </Text>
+                </View>
+              )}
+            </Pressable>
+            <Pressable onPress={handleLogout} style={styles.logoutButton} hitSlop={8}>
+              <MaterialIcons name="logout" size={24} color={colors.staff.text} />
+            </Pressable>
+          </View>
         </View>
 
         <View style={styles.tabs}>
@@ -1022,7 +1580,7 @@ export default function StaffDashboardScreen() {
             onPress={() => setViewMode('files')}
             style={[
               styles.tab,
-              viewMode === 'files' && { borderBottomColor: colors.staff.primary },
+              viewMode === 'files' && styles.tabActive,
             ]}
           >
             <MaterialIcons
@@ -1038,6 +1596,7 @@ export default function StaffDashboardScreen() {
                     viewMode === 'files' ? colors.staff.primary : colors.staff.textSecondary,
                 },
               ]}
+              numberOfLines={1}
             >
               Files
             </Text>
@@ -1047,7 +1606,7 @@ export default function StaffDashboardScreen() {
             onPress={() => setViewMode('qr')}
             style={[
               styles.tab,
-              viewMode === 'qr' && { borderBottomColor: colors.staff.primary },
+              viewMode === 'qr' && styles.tabActive,
             ]}
           >
             <MaterialIcons
@@ -1062,6 +1621,7 @@ export default function StaffDashboardScreen() {
                   color: viewMode === 'qr' ? colors.staff.primary : colors.staff.textSecondary,
                 },
               ]}
+              numberOfLines={1}
             >
               QR Code
             </Text>
@@ -1073,7 +1633,7 @@ export default function StaffDashboardScreen() {
             }}
             style={[
               styles.tab,
-              viewMode === 'attendance' && { borderBottomColor: colors.staff.primary },
+              viewMode === 'attendance' && styles.tabActive,
             ]}
           >
             <MaterialIcons
@@ -1093,6 +1653,7 @@ export default function StaffDashboardScreen() {
                       : colors.staff.textSecondary,
                 },
               ]}
+              numberOfLines={1}
             >
               Attendance
             </Text>
@@ -1102,7 +1663,7 @@ export default function StaffDashboardScreen() {
             onPress={() => setViewMode('classes')}
             style={[
               styles.tab,
-              viewMode === 'classes' && { borderBottomColor: colors.staff.primary },
+              viewMode === 'classes' && styles.tabActive,
             ]}
           >
             <MaterialIcons
@@ -1122,6 +1683,7 @@ export default function StaffDashboardScreen() {
                       : colors.staff.textSecondary,
                 },
               ]}
+              numberOfLines={1}
             >
               Classes
             </Text>
@@ -1132,6 +1694,7 @@ export default function StaffDashboardScreen() {
         {viewMode === 'qr' && renderQRView()}
         {viewMode === 'attendance' && renderAttendanceView()}
         {viewMode === 'classes' && renderClassesView()}
+        {viewMode === 'students' && renderStudentsView()}
       </View>
     </Screen>
   );
@@ -1162,30 +1725,65 @@ const styles = StyleSheet.create({
   logoutButton: {
     padding: spacing.xs,
   },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  headerIconBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    position: 'relative',
+  },
+  headerBadge: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    backgroundColor: '#EF4444',
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 4,
+    borderWidth: 2,
+    borderColor: colors.common.white,
+  },
+  headerBadgeText: {
+    color: colors.common.white,
+    fontSize: 9,
+    fontWeight: '900',
+  },
   tabs: {
     flexDirection: 'row',
-    backgroundColor: colors.staff.surface,
-    padding: spacing.xs,
-    borderRadius: borderRadius.lg,
+    backgroundColor: '#F1F5F9',
+    padding: 6,
+    borderRadius: 20,
     marginBottom: spacing.xl,
-    borderWidth: 1,
-    borderColor: colors.common.gray200,
   },
   tab: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: spacing.sm,
-    borderRadius: borderRadius.md,
-    gap: 4,
+    paddingVertical: 12,
+    borderRadius: 14,
+    gap: 2,
   },
   tabActive: {
-    backgroundColor: colors.staff.primary + '15',
+    backgroundColor: colors.common.white,
+    ...shadows.sm,
   },
   tabText: {
-    ...typography.bodySmall,
-    fontWeight: '600',
-    marginLeft: spacing.xs,
+    fontSize: 10,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
   },
   section: {
     marginBottom: spacing.xl,
@@ -1496,6 +2094,11 @@ const styles = StyleSheet.create({
     ...typography.h3,
     fontWeight: '700',
   },
+  modalSubtitle: {
+    fontSize: 13,
+    color: colors.staff.textSecondary,
+    fontWeight: '600',
+  },
   modalBody: {
     paddingBottom: spacing.md,
   },
@@ -1545,11 +2148,6 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 32,
     padding: spacing.xl,
     paddingBottom: 40,
-  },
-  modalSubtitle: {
-    fontSize: 14,
-    color: colors.staff.textSecondary,
-    marginTop: 2,
   },
   closeButton: {
     padding: spacing.xs,
@@ -1727,5 +2325,211 @@ const styles = StyleSheet.create({
     marginTop: spacing.md,
     paddingHorizontal: spacing.xl,
     lineHeight: 22,
+  },
+  countBadge: {
+    backgroundColor: colors.staff.primary,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    borderRadius: 12,
+    marginLeft: spacing.sm,
+  },
+  countText: {
+    color: colors.common.white,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  studentFilterBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.common.white,
+    paddingHorizontal: spacing.md,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.staff.border,
+    marginBottom: spacing.lg,
+  },
+  studentSearchInput: {
+    flex: 1,
+    height: 44,
+    marginLeft: spacing.sm,
+    fontSize: 14,
+  },
+  studentCard: {
+    borderRadius: borderRadius.lg,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+    borderWidth: 1,
+  },
+  studentCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  studentAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: colors.staff.primary + '20',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  studentAvatarText: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: colors.staff.primary,
+  },
+  studentName: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.staff.text,
+  },
+  studentMeta: {
+    fontSize: 13,
+    color: colors.staff.textSecondary,
+    marginTop: 2,
+  },
+  approvalStatus: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+    borderRadius: borderRadius.sm,
+  },
+  approvalStatusText: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  studentCardInfo: {
+    marginTop: spacing.md,
+    paddingTop: spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+  },
+  infoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  infoRowText: {
+    fontSize: 13,
+    color: colors.staff.textSecondary,
+  },
+  studentCardActions: {
+    flexDirection: 'row',
+    marginTop: spacing.md,
+    gap: spacing.sm,
+  },
+  statusToggleContainer: {
+    marginBottom: spacing.lg,
+  },
+  statusToggle: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  statusToggleButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+    borderRadius: borderRadius.md,
+    borderWidth: 2,
+    borderColor: colors.staff.border,
+    backgroundColor: colors.common.white,
+    gap: spacing.xs,
+  },
+  statusToggleButtonActive: {
+    backgroundColor: colors.staff.primary,
+    borderColor: colors.staff.primary,
+  },
+  statusToggleText: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  selectAllButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: spacing.sm,
+    gap: spacing.sm,
+  },
+  selectAllText: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  manualStudentCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: spacing.md,
+    borderRadius: borderRadius.lg,
+    borderWidth: 2,
+    ...shadows.sm,
+  },
+  modalFooter: {
+    flexDirection: 'row',
+    marginTop: spacing.lg,
+    gap: spacing.sm,
+  },
+  // Class Management Styles
+  subsectionTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: spacing.sm,
+  },
+  classCard: {
+    backgroundColor: colors.common.white,
+    borderRadius: borderRadius.lg,
+    borderWidth: 2,
+    padding: spacing.lg,
+    ...shadows.md,
+  },
+  classCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: spacing.md,
+  },
+  classIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: borderRadius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  className: {
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  classDetails: {
+    fontSize: 13,
+    fontWeight: '400',
+  },
+  deleteClassBtn: {
+    padding: spacing.sm,
+    borderRadius: borderRadius.md,
+    backgroundColor: '#FEE2E2',
+  },
+  classCardFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+  },
+  studentCount: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  studentCountText: {
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  viewStudentsBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  viewStudentsText: {
+    fontSize: 14,
+    fontWeight: '600',
   },
 });

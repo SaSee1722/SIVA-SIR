@@ -178,7 +178,8 @@ export const attendanceService = {
     studentName: string,
     rollNumber: string,
     studentClass: string,
-    systemNumber?: string
+    systemNumber?: string,
+    deviceId?: string
   ): Promise<AttendanceRecord> {
     const supabase = getSharedSupabaseClient();
 
@@ -195,6 +196,32 @@ export const attendanceService = {
       throw new Error('Attendance already marked for this session');
     }
 
+    // Security Check: Verify Approval and Device Binding
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('is_approved, device_id')
+      .eq('id', studentId)
+      .single();
+
+    if (profileError) throw profileError;
+
+    if (!profile.is_approved) {
+      throw new Error('Your account is pending approval by staff. You cannot mark attendance yet.');
+    }
+
+    if (deviceId) {
+      if (!profile.device_id) {
+        // First time marking attendance, bind the device
+        const { error: bindError } = await supabase
+          .from('profiles')
+          .update({ device_id: deviceId })
+          .eq('id', studentId);
+        if (bindError) throw bindError;
+      } else if (profile.device_id !== deviceId) {
+        // Device mismatch detected
+        throw new Error('Unauthorized Device: You can only mark attendance from your registered device. Please contact staff if you changed your phone.');
+      }
+    }
     const newRecord = {
       session_id: sessionId,
       session_name: sessionName,
@@ -205,6 +232,7 @@ export const attendanceService = {
       class: studentClass,
       marked_at: new Date().toISOString(),
       date: new Date().toISOString().split('T')[0],
+      status: 'present',
     };
 
     const { data, error } = await supabase
@@ -226,6 +254,78 @@ export const attendanceService = {
       class: data.class,
       markedAt: data.marked_at,
       date: data.date,
+      status: data.status,
+      markedBy: data.marked_by,
+    };
+  },
+
+  async markManualAttendance(
+    sessionId: string,
+    sessionName: string,
+    studentId: string,
+    studentName: string,
+    rollNumber: string,
+    studentClass: string,
+    staffId: string,
+    status: 'present' | 'on_duty',
+    systemNumber?: string
+  ): Promise<AttendanceRecord> {
+    const supabase = getSharedSupabaseClient();
+
+    // Check if record already exists
+    const { data: existing, error: checkError } = await supabase
+      .from('attendance_records')
+      .select('id')
+      .eq('session_id', sessionId)
+      .eq('student_id', studentId)
+      .maybeSingle();
+
+    if (checkError) throw checkError;
+    if (existing) {
+      throw new Error('Attendance already marked for this session');
+    }
+
+    const newRecord: any = {
+      session_id: sessionId,
+      session_name: sessionName,
+      student_id: studentId,
+      student_name: studentName,
+      roll_number: rollNumber,
+      system_number: systemNumber,
+      class: studentClass,
+      marked_at: new Date().toISOString(),
+      date: new Date().toISOString().split('T')[0],
+    };
+
+    // Only add status and marked_by if provided (for manual marking)
+    if (status) {
+      newRecord.status = status;
+    }
+    if (staffId) {
+      newRecord.marked_by = staffId;
+    }
+
+    const { data, error } = await supabase
+      .from('attendance_records')
+      .insert([newRecord])
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    return {
+      id: data.id,
+      sessionId: data.session_id,
+      sessionName: data.session_name,
+      studentId: data.student_id,
+      studentName: data.student_name,
+      rollNumber: data.roll_number,
+      systemNumber: data.system_number,
+      class: data.class,
+      markedAt: data.marked_at,
+      date: data.date,
+      status: data.status,
+      markedBy: data.marked_by,
     };
   },
 
@@ -249,6 +349,8 @@ export const attendanceService = {
       class: r.class,
       markedAt: r.marked_at,
       date: r.date,
+      status: r.status,
+      markedBy: r.marked_by,
     }));
   },
 
@@ -307,6 +409,8 @@ export const attendanceService = {
       class: r.class,
       markedAt: r.marked_at,
       date: r.date,
+      status: r.status,
+      markedBy: r.marked_by,
     }));
   },
 
@@ -330,6 +434,8 @@ export const attendanceService = {
       class: r.class,
       markedAt: r.marked_at,
       date: r.date,
+      status: r.status,
+      markedBy: r.marked_by,
     }));
   },
 
@@ -354,6 +460,8 @@ export const attendanceService = {
       class: r.class,
       markedAt: r.marked_at,
       date: r.date,
+      status: r.status,
+      markedBy: r.marked_by,
     }));
   },
 
@@ -377,6 +485,8 @@ export const attendanceService = {
       class: r.class,
       markedAt: r.marked_at,
       date: r.date,
+      status: r.status,
+      markedBy: r.marked_by,
     }));
   },
 

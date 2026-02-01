@@ -10,6 +10,8 @@ export interface User {
   rollNumber?: string;
   systemNumber?: string;
   department?: string;
+  isApproved?: boolean;
+  deviceId?: string | null;
   createdAt: string;
 }
 
@@ -19,6 +21,8 @@ export interface StudentProfile extends User {
   year: string;
   rollNumber: string;
   systemNumber: string;
+  isApproved: boolean;
+  deviceId: string | null;
 }
 
 export interface StaffProfile extends User {
@@ -43,8 +47,11 @@ export interface UploadedFile {
 export interface Class {
   id: string;
   className: string;
+  name?: string; // Display name (can be same as className)
   description?: string;
   year?: string;
+  department?: string; // Department the class belongs to
+  studentCount?: number; // Number of students in this class
   createdBy: string;
   isActive: boolean;
   createdAt: string;
@@ -61,6 +68,8 @@ export interface AttendanceSession {
   classFilter?: string; // Optional: filter session by specific class
 }
 
+export type AttendanceStatus = 'present' | 'on_duty';
+
 export interface AttendanceRecord {
   id: string;
   sessionId: string;
@@ -72,6 +81,8 @@ export interface AttendanceRecord {
   class: string;
   markedAt: string;
   date: string;
+  status?: AttendanceStatus;
+  markedBy?: string; // Staff ID who manually marked (if applicable)
 }
 
 export type NotificationType = 'session_created' | 'absent' | 'general';

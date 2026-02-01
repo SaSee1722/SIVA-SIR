@@ -22,6 +22,8 @@ export const authService = {
           roll_number: additionalData.rollNumber,
           system_number: additionalData.systemNumber,
           department: additionalData.department,
+          is_approved: role === 'staff', // Staff approved by default (or admin), students need approval
+          device_id: null,
         }
       }
     });
@@ -116,6 +118,8 @@ export const authService = {
             ...profile,
             rollNumber: profile.roll_number,
             systemNumber: profile.system_number,
+            isApproved: profile.is_approved,
+            deviceId: profile.device_id,
             createdAt: profile.created_at,
           } as User;
 
@@ -158,6 +162,8 @@ export const authService = {
         rollNumber: meta.roll_number,
         systemNumber: meta.system_number,
         department: meta.department,
+        isApproved: meta.is_approved,
+        deviceId: meta.device_id,
         createdAt: userToUse.created_at,
       } as User;
 
@@ -226,6 +232,8 @@ export const authService = {
       ...profile,
       rollNumber: profile.roll_number,
       systemNumber: profile.system_number,
+      isApproved: profile.is_approved ?? true, // Default to true for legacy students
+      deviceId: profile.device_id,
       createdAt: profile.created_at
     })) as User[];
   },
@@ -246,13 +254,36 @@ export const authService = {
       mappedUpdates.created_at = mappedUpdates.createdAt;
       delete mappedUpdates.createdAt;
     }
+    if (mappedUpdates.isApproved !== undefined) {
+      mappedUpdates.is_approved = mappedUpdates.isApproved;
+      delete mappedUpdates.isApproved;
+    }
+    if (mappedUpdates.deviceId !== undefined) {
+      mappedUpdates.device_id = mappedUpdates.deviceId;
+      delete mappedUpdates.deviceId;
+    }
 
-    const { data, error } = await supabase
+    // Try to update with all fields first
+    let { data, error } = await supabase
       .from('profiles')
       .update(mappedUpdates)
       .eq('id', userId)
       .select()
       .single();
+
+    // If error is about missing column, retry without is_approved and device_id
+    if (error && error.message?.includes('is_approved')) {
+      console.log('is_approved column not found, retrying without it');
+      const { is_approved, device_id, ...safeUpdates } = mappedUpdates;
+      const result = await supabase
+        .from('profiles')
+        .update(safeUpdates)
+        .eq('id', userId)
+        .select()
+        .single();
+      data = result.data;
+      error = result.error;
+    }
 
     if (error) throw error;
 
@@ -260,13 +291,15 @@ export const authService = {
       ...data,
       rollNumber: data.roll_number,
       systemNumber: data.system_number,
+      isApproved: data.is_approved ?? true, // Default to true if column doesn't exist
+      deviceId: data.device_id,
       createdAt: data.created_at
     } as User;
-  },
+  }
+  ,
 
   onAuthStateChange(callback: (event: any, session: any) => void) {
     const supabase = getSharedSupabaseClient();
     return supabase.auth.onAuthStateChange(callback);
   },
 };
-
