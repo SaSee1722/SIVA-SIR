@@ -276,4 +276,83 @@ export const classService = {
             averageAttendance: Math.round(averageAttendance * 10) / 10,
         };
     },
+
+    // Add a student to a class
+    async addStudentToClass(studentId: string, className: string): Promise<void> {
+        const supabase = getSharedSupabaseClient();
+
+        // Get current class list for the student
+        const { data, error } = await supabase
+            .from('profiles')
+            .select('class')
+            .eq('id', studentId)
+            .single();
+
+        if (error) throw error;
+
+        const currentClasses = data.class ? data.class.split(',').map((c: string) => c.trim()) : [];
+        if (!currentClasses.includes(className)) {
+            currentClasses.push(className);
+            const { error: updateError } = await supabase
+                .from('profiles')
+                .update({ class: currentClasses.join(', ') })
+                .eq('id', studentId);
+
+            if (updateError) throw updateError;
+        }
+    },
+
+    // Remove a student from a class
+    async removeStudentFromClass(studentId: string, className: string): Promise<void> {
+        const supabase = getSharedSupabaseClient();
+
+        // Get current class list for the student
+        const { data, error } = await supabase
+            .from('profiles')
+            .select('class')
+            .eq('id', studentId)
+            .single();
+
+        if (error) throw error;
+
+        if (data.class) {
+            const currentClasses = data.class.split(',').map((c: string) => c.trim());
+            const updatedClasses = currentClasses.filter(c => c !== className);
+
+            const { error: updateError } = await supabase
+                .from('profiles')
+                .update({ class: updatedClasses.join(', ') })
+                .eq('id', studentId);
+
+            if (updateError) throw updateError;
+        }
+    },
+
+    // Search students to enroll (those not already in the class)
+    async searchStudentsToEnroll(queryText: string, excludeClassName: string): Promise<any[]> {
+        const supabase = getSharedSupabaseClient();
+
+        const { data, error } = await supabase
+            .from('profiles')
+            .select('id, name, email, roll_number, class')
+            .eq('role', 'student')
+            .or(`name.ilike.%${queryText}%,roll_number.ilike.%${queryText}%,email.ilike.%${queryText}%`)
+            .limit(10);
+
+        if (error) throw error;
+
+        // Filter out those already in this class
+        const targetClass = excludeClassName.trim().toLowerCase();
+        return (data || []).filter(student => {
+            if (!student.class) return true;
+            const studentClasses = student.class.split(',').map((c: string) => c.trim().toLowerCase());
+            return !studentClasses.includes(targetClass);
+        }).map(s => ({
+            id: s.id,
+            name: s.name,
+            email: s.email,
+            rollNumber: s.roll_number,
+            class: s.class
+        }));
+    }
 };
