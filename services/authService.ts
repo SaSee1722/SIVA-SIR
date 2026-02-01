@@ -286,7 +286,20 @@ export const authService = {
     if (error) throw error;
 
     // Get the first result if it's an array
-    const profile = Array.isArray(data) ? data[0] : data;
+    let profile = Array.isArray(data) ? data[0] : data;
+
+    // If no data returned from update, fetch the profile
+    if (!profile) {
+      console.log('No data returned from update, fetching profile...');
+      const { data: fetchedData, error: fetchError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+
+      if (fetchError) throw fetchError;
+      profile = fetchedData;
+    }
 
     if (!profile) {
       throw new Error('Profile not found');
