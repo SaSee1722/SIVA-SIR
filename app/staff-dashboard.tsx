@@ -956,8 +956,8 @@ export default function StaffDashboardScreen() {
                 </View>
               ) : (
                 <ScrollView
-                  style={{ flex: 1, marginTop: spacing.md }}
-                  contentContainerStyle={{ paddingBottom: spacing.md, minHeight: 100 }}
+                  style={{ maxHeight: 300, marginTop: spacing.md }}
+                  contentContainerStyle={{ paddingBottom: spacing.md }}
                   showsVerticalScrollIndicator={true}
                   nestedScrollEnabled={true}
                 >
