@@ -955,14 +955,15 @@ export default function StaffDashboardScreen() {
                   </Text>
                 </View>
               ) : (
-                <FlatList
-                  data={manualMarkStudents}
-                  keyExtractor={(item) => item.id}
+                <ScrollView
                   style={{ flex: 1, marginTop: spacing.md }}
-                  contentContainerStyle={{ paddingBottom: spacing.md }}
-                  showsVerticalScrollIndicator={false}
-                  renderItem={({ item: student }) => (
+                  contentContainerStyle={{ paddingBottom: spacing.md, minHeight: 100 }}
+                  showsVerticalScrollIndicator={true}
+                  nestedScrollEnabled={true}
+                >
+                  {manualMarkStudents.map((student) => (
                     <Pressable
+                      key={student.id}
                       onPress={() => toggleManualStudent(student.id)}
                       style={[
                         styles.manualStudentCard,
@@ -991,8 +992,8 @@ export default function StaffDashboardScreen() {
                         </Text>
                       </View>
                     </Pressable>
-                  )}
-                />
+                  ))}
+                </ScrollView>
               )}
 
               {/* Action Buttons */}
