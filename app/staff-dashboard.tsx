@@ -459,10 +459,22 @@ export default function StaffDashboardScreen() {
 
   const handleApproveStudent = async (studentId: string) => {
     try {
+      console.log('Approving student:', studentId);
       await authService.updateProfile(studentId, { isApproved: true });
+      console.log('Student approved successfully');
+
+      // Immediately update local state for instant UI feedback
+      setAllStudents(prev => prev.map(s =>
+        s.id === studentId ? { ...s, isApproved: true } : s
+      ));
+
       showToast('Student approved successfully', 'success');
-      loadAllStudents();
+
+      // Reload from database to ensure consistency
+      await loadAllStudents();
+      console.log('Students reloaded after approval');
     } catch (error: any) {
+      console.error('Error approving student:', error);
       showAlert('Error', error.message || 'Failed to approve student');
     }
   };
