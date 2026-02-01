@@ -116,12 +116,10 @@ export function FileList({ files, role = 'student', showStudentInfo = false, onD
 
   return (
     <>
-      <FlatList
-        data={files}
-        keyExtractor={(item) => item.id}
-        scrollEnabled={false}
-        renderItem={({ item }) => (
+      <View style={{ gap: spacing.md }}>
+        {files.map((item) => (
           <Pressable
+            key={item.id}
             onPress={() => setPreviewFile(item)}
             style={({ pressed }) => [
               styles.fileCard,
@@ -224,9 +222,8 @@ export function FileList({ files, role = 'student', showStudentInfo = false, onD
               )}
             </View>
           </Pressable>
-        )}
-        ItemSeparatorComponent={() => <View style={{ height: spacing.md }} />}
-      />
+        ))}
+      </View>
 
       {/* Fullscreen Preview Modal */}
       <Modal

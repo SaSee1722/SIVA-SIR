@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Pressable } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import { CameraView, Camera } from 'expo-camera';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -8,6 +8,7 @@ import { useAttendance } from '@/hooks/useAttendance';
 import { StudentProfile } from '@/types';
 import { colors, typography, borderRadius, spacing } from '@/constants/theme';
 import { useAlert } from '@/template';
+import * as Application from 'expo-application';
 
 export default function QRScannerScreen() {
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
@@ -48,8 +49,11 @@ export default function QRScannerScreen() {
         user!.id,
         user!.name,
         studentProfile.rollNumber,
-        studentProfile.class,
-        studentProfile.systemNumber
+        activeSession.classFilter && activeSession.classFilter !== 'All Classes'
+          ? activeSession.classFilter
+          : studentProfile.class,
+        studentProfile.systemNumber,
+        Platform.OS === 'android' ? await Application.getAndroidId() : await Application.getIosIdForVendorAsync() || undefined
       );
 
       showAlert('Success', 'Attendance marked successfully!', [

@@ -68,7 +68,8 @@ export function useAttendance(staffId?: string) {
     studentName: string,
     rollNumber: string,
     studentClass: string,
-    systemNumber?: string
+    systemNumber?: string,
+    deviceId?: string
   ) => {
     const newRecord = await attendanceService.markAttendance(
       sessionId,
@@ -77,7 +78,8 @@ export function useAttendance(staffId?: string) {
       studentName,
       rollNumber,
       studentClass,
-      systemNumber
+      systemNumber,
+      deviceId
     );
     setRecords(prev => [newRecord, ...prev]);
     return newRecord;

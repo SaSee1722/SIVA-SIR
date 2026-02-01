@@ -225,6 +225,41 @@ export default function StudentDashboardScreen() {
 
   if (!user || !studentProfile) return null;
 
+  if (!studentProfile.isApproved) {
+    return (
+      <Screen role="student">
+        <View style={styles.pendingContainer}>
+          <View style={styles.pendingCard}>
+            <MaterialIcons name="pending" size={80} color={colors.student.primary} />
+            <Text style={styles.pendingTitle}>Account Pending Approval</Text>
+            <Text style={styles.pendingDesc}>
+              Hello {studentProfile.name}, your account is currently being reviewed by our staff.
+              You will be granted full access once verified.
+            </Text>
+            <View style={styles.pendingInfoRow}>
+              <MaterialIcons name="info-outline" size={20} color={colors.student.textSecondary} />
+              <Text style={styles.pendingInfoText}>This measure ensures the integrity of our attendance system.</Text>
+            </View>
+            <Button
+              title="Refresh Status"
+              onPress={handleRefresh}
+              loading={refreshing}
+              role="student"
+              style={{ width: '100%', marginBottom: spacing.md }}
+            />
+            <Button
+              title="Logout"
+              onPress={handleLogout}
+              variant="secondary"
+              role="student"
+              style={{ width: '100%' }}
+            />
+          </View>
+        </View>
+      </Screen>
+    );
+  }
+
   return (
     <Screen
       role="student"
@@ -894,5 +929,47 @@ const styles = StyleSheet.create({
   statusText: {
     fontSize: 11,
     fontWeight: '700',
+  },
+  pendingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    padding: spacing.xl,
+    backgroundColor: colors.common.gray50,
+  },
+  pendingCard: {
+    backgroundColor: colors.common.white,
+    padding: spacing.xxl,
+    borderRadius: borderRadius.xl,
+    alignItems: 'center',
+    ...shadows.lg,
+  },
+  pendingTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: colors.student.text,
+    marginTop: spacing.lg,
+    textAlign: 'center',
+  },
+  pendingDesc: {
+    fontSize: 15,
+    color: colors.student.textSecondary,
+    textAlign: 'center',
+    marginTop: spacing.md,
+    lineHeight: 22,
+  },
+  pendingInfoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.student.surfaceLight,
+    padding: spacing.md,
+    borderRadius: borderRadius.md,
+    gap: spacing.sm,
+    marginVertical: spacing.xl,
+  },
+  pendingInfoText: {
+    flex: 1,
+    fontSize: 13,
+    color: colors.student.textSecondary,
+    lineHeight: 18,
   },
 });

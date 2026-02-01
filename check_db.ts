@@ -1,0 +1,1 @@
+import { getSharedSupabaseClient } from './template/core/client'; async function checkColumns() { const supabase = getSharedSupabaseClient(); const { data, error } = await supabase.from('profiles').select('*').limit(1); if (error) console.error(error); else console.log(Object.keys(data[0] || {})); } checkColumns();
