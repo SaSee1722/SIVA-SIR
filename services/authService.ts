@@ -268,32 +268,37 @@ export const authService = {
       .from('profiles')
       .update(mappedUpdates)
       .eq('id', userId)
-      .select()
-      .single();
+      .select();
 
-    // If error is about missing column, retry without is_approved and device_id
-    if (error && error.message?.includes('is_approved')) {
-      console.log('is_approved column not found, retrying without it');
+    // If error is about missing column or coercion error, retry without is_approved and device_id
+    if (error && (error.message?.includes('is_approved') || error.message?.includes('device_id') || error.message?.includes('column') || error.message?.includes('coerce'))) {
+      console.log('Column not found or query error, retrying without optional fields:', error.message);
       const { is_approved, device_id, ...safeUpdates } = mappedUpdates;
       const result = await supabase
         .from('profiles')
         .update(safeUpdates)
         .eq('id', userId)
-        .select()
-        .single();
+        .select();
       data = result.data;
       error = result.error;
     }
 
     if (error) throw error;
 
+    // Get the first result if it's an array
+    const profile = Array.isArray(data) ? data[0] : data;
+
+    if (!profile) {
+      throw new Error('Profile not found');
+    }
+
     return {
-      ...data,
-      rollNumber: data.roll_number,
-      systemNumber: data.system_number,
-      isApproved: data.is_approved ?? true, // Default to true if column doesn't exist
-      deviceId: data.device_id,
-      createdAt: data.created_at
+      ...profile,
+      rollNumber: profile.roll_number,
+      systemNumber: profile.system_number,
+      isApproved: profile.is_approved ?? true, // Default to true if column doesn't exist
+      deviceId: profile.device_id,
+      createdAt: profile.created_at
     } as User;
   }
   ,
