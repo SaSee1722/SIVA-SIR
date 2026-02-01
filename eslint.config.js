@@ -5,6 +5,10 @@ const expoConfig = require('eslint-config-expo/flat');
 module.exports = defineConfig([
   expoConfig,
   {
-    ignores: ['dist/*'],
+    ignores: ['dist/*', 'node_modules/*'],
+    rules: {
+      // Suppress false positive errors from unrs-resolver native binding
+      'import/no-unresolved': 'off',
+    },
   },
 ]);
