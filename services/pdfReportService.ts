@@ -385,7 +385,10 @@ export const pdfReportService = {
           
           
           ${sessionGroups.length > 0 ? `
-            ${sessionGroups.map((group) => `
+            ${sessionGroups.map((group) => {
+      const presentCount = group.present.filter(p => p.status !== 'on_duty').length;
+      const onDutyCount = group.present.filter(p => p.status === 'on_duty').length;
+      return `
                 <div class="session-card">
                     <div class="session-card-header">
                         <div>
@@ -395,7 +398,7 @@ export const pdfReportService = {
                             </div>
                         </div>
                         <div class="record-count">
-                            ${group.present.length} Present | ${group.absent.length} Absent
+                            ${presentCount} Present${onDutyCount > 0 ? ` | ${onDutyCount} On Duty` : ''} | ${group.absent.length} Absent
                         </div>
                     </div>
                     <table class="student-table">
@@ -415,7 +418,12 @@ export const pdfReportService = {
                                     <td>${p.rollNumber}</td>
                                     <td>${p.systemNumber || '-'}</td>
                                     <td>${group.classFilter}</td>
-                                    <td><span class="present-text">✓ Present</span></td>
+                                    <td>
+                                      ${p.status === 'on_duty'
+          ? '<span style="color: #92400E; font-weight: 600;">⚡ On Duty</span>'
+          : '<span class="present-text">✓ Present</span>'
+        }
+                                    </td>
                                 </tr>
                             `).join('')}
                             ${group.absent.map(a => `
@@ -430,7 +438,7 @@ export const pdfReportService = {
                         </tbody>
                     </table>
                 </div>
-            `).join('')}
+            `}).join('')}
           ` : `
           
           ${records.length > 0 ? `
