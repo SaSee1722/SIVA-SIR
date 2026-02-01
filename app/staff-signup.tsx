@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, Pressable, KeyboardAvoidingView, Platform } from 'react-native';
+import React, { useState, useMemo } from 'react';
+import { View, Text, StyleSheet, Pressable, KeyboardAvoidingView, Platform, Modal } from 'react-native';
 import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useAuth } from '@/hooks/useAuth';
@@ -14,14 +14,17 @@ export default function StaffSignupScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [department, setDepartment] = useState('');
+  const [showDepartmentPicker, setShowDepartmentPicker] = useState(false);
   const [loading, setLoading] = useState(false);
   const { signup } = useAuth();
   const router = useRouter();
   const { showAlert } = useAlert();
 
+  const DEPARTMENTS = useMemo(() => ['CSE', 'EEE', 'ECE', 'IT', 'MECH', 'CIVIL'], []);
+
   const handleSignup = async () => {
-    if (!name || !email || !password) {
-      showAlert('Error', 'Please fill in required fields');
+    if (!name || !email || !password || !department) {
+      showAlert('Error', 'Please fill in all fields (Select your department)');
       return;
     }
 
@@ -97,11 +100,12 @@ export default function StaffSignupScreen() {
               role="staff"
             />
             <Input
-              label="Department (Optional)"
+              label="Department"
               value={department}
               onChangeText={setDepartment}
-              placeholder="e.g., Computer Science"
+              placeholder="e.g., CSE"
               role="staff"
+              autoCapitalize="characters"
             />
 
             <Button
@@ -125,6 +129,40 @@ export default function StaffSignupScreen() {
             </Pressable>
           </View>
         </View>
+
+        {/* Department Picker Modal */}
+        <Modal
+          visible={showDepartmentPicker}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setShowDepartmentPicker(false)}
+        >
+          <Pressable
+            style={styles.modalOverlay}
+            onPress={() => setShowDepartmentPicker(false)}
+          >
+            <View style={styles.pickerContainer}>
+              <Text style={styles.pickerTitle}>Select Your Department</Text>
+              {DEPARTMENTS.map((dept) => (
+                <Pressable
+                  key={dept}
+                  style={styles.pickerOption}
+                  onPress={() => {
+                    setDepartment(dept);
+                    setShowDepartmentPicker(false);
+                  }}
+                >
+                  <Text style={[
+                    styles.pickerOptionText,
+                    department === dept && styles.pickerOptionActive
+                  ]}>
+                    {dept}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          </Pressable>
+        </Modal>
       </KeyboardAvoidingView>
     </Screen>
   );
@@ -159,5 +197,37 @@ const styles = StyleSheet.create({
   },
   linkText: {
     ...typography.bodySmall,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  pickerContainer: {
+    backgroundColor: colors.common.white,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: spacing.xl,
+    paddingBottom: spacing.xxl,
+  },
+  pickerTitle: {
+    ...typography.h3,
+    marginBottom: spacing.lg,
+    textAlign: 'center',
+    color: colors.staff.text,
+  },
+  pickerOption: {
+    paddingVertical: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.common.gray100,
+  },
+  pickerOptionText: {
+    ...typography.body,
+    textAlign: 'center',
+    color: colors.common.gray700,
+  },
+  pickerOptionActive: {
+    color: colors.staff.primary,
+    fontWeight: '700',
   },
 });

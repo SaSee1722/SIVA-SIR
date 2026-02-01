@@ -8,9 +8,10 @@ import { colors, typography, borderRadius, spacing } from '@/constants/theme';
 interface StaffSelectorProps {
     onSelect: (staff: User | null) => void;
     selectedStaffId: string | null;
+    department?: string;
 }
 
-export function StaffSelector({ onSelect, selectedStaffId }: StaffSelectorProps) {
+export function StaffSelector({ onSelect, selectedStaffId, department }: StaffSelectorProps) {
     const [staffList, setStaffList] = useState<User[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
@@ -18,7 +19,15 @@ export function StaffSelector({ onSelect, selectedStaffId }: StaffSelectorProps)
         async function fetchStaff() {
             try {
                 const users = await authService.getAllUsers();
-                const staff = users.filter((u) => u.role === 'staff');
+                let staff = users.filter((u) => u.role === 'staff');
+
+                // Filter by department if provided
+                if (department) {
+                    staff = staff.filter(s =>
+                        (s as any).department?.trim().toUpperCase() === department.trim().toUpperCase()
+                    );
+                }
+
                 setStaffList(staff);
             } catch (error) {
                 console.error('Fetch staff error:', error);
@@ -27,7 +36,7 @@ export function StaffSelector({ onSelect, selectedStaffId }: StaffSelectorProps)
             }
         }
         fetchStaff();
-    }, []);
+    }, [department]);
 
     if (isLoading) {
         return (

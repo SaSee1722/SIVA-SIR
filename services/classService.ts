@@ -1,3 +1,4 @@
+import { createClient } from '@supabase/supabase-js';
 import { getSharedSupabaseClient } from '@/template/core/client';
 import { Class } from '@/types';
 
@@ -227,6 +228,8 @@ export const classService = {
             return studentClasses.includes(targetClass);
         });
 
+        // Filter for those who are NOT pending for this specific class
+        // (If we want only approved students in the list)
         return matchedStudents.map(s => ({
             id: s.id,
             name: s.name,
@@ -333,6 +336,85 @@ export const classService = {
         }
     },
 
+    // Request to join a class (sets as pending)
+    async requestJoinClass(studentId: string, className: string): Promise<void> {
+        const supabase = getSharedSupabaseClient();
+        const targetClass = className.trim();
+
+        const { data, error } = await supabase
+            .from('profiles')
+            .select('pending_classes, class')
+            .eq('id', studentId)
+            .single();
+
+        if (error) throw error;
+
+        const currentPending = data.pending_classes
+            ? data.pending_classes.split(',').map((c: string) => c.trim()).filter((c: string) => c.length > 0)
+            : [];
+
+        const currentApproved = data.class
+            ? data.class.split(',').map((c: string) => c.trim()).filter((c: string) => c.length > 0)
+            : [];
+
+        // If already approved or already pending, do nothing
+        if (currentApproved.some((c: string) => c.toLowerCase() === targetClass.toLowerCase())) {
+            return;
+        }
+
+        if (!currentPending.some((c: string) => c.toLowerCase() === targetClass.toLowerCase())) {
+            currentPending.push(targetClass);
+            const { error: updateError } = await supabase
+                .from('profiles')
+                .update({ pending_classes: currentPending.join(', ') })
+                .eq('id', studentId);
+
+            if (updateError) throw updateError;
+        }
+    },
+
+    // Approve a specific enrollment request
+    async approveEnrollment(studentId: string, className: string): Promise<void> {
+        const supabase = getSharedSupabaseClient();
+        const targetClass = className.trim();
+
+        const { data, error } = await supabase
+            .from('profiles')
+            .select('pending_classes, class')
+            .eq('id', studentId)
+            .single();
+
+        if (error) throw error;
+
+        let currentPending = data.pending_classes
+            ? data.pending_classes.split(',').map((c: string) => c.trim()).filter((c: string) => c.length > 0)
+            : [];
+
+        let currentApproved = data.class
+            ? data.class.split(',').map((c: string) => c.trim()).filter((c: string) => c.length > 0)
+            : [];
+
+        // Move from pending to approved
+        if (currentPending.some((c: string) => c.toLowerCase() === targetClass.toLowerCase())) {
+            currentPending = currentPending.filter((c: string) => c.toLowerCase() !== targetClass.toLowerCase());
+
+            if (!currentApproved.some((c: string) => c.toLowerCase() === targetClass.toLowerCase())) {
+                currentApproved.push(targetClass);
+            }
+
+            const { error: updateError } = await supabase
+                .from('profiles')
+                .update({
+                    class: currentApproved.join(', '),
+                    pending_classes: currentPending.length > 0 ? currentPending.join(', ') : null,
+                    is_approved: true // Root level approval as well
+                })
+                .eq('id', studentId);
+
+            if (updateError) throw updateError;
+        }
+    },
+
     // Search students to enroll (those not already in the class)
     async searchStudentsToEnroll(queryText: string, excludeClassName: string): Promise<any[]> {
         const supabase = getSharedSupabaseClient();
@@ -359,5 +441,40 @@ export const classService = {
             rollNumber: s.roll_number,
             class: s.class
         }));
+    },
+
+    // Register a new student and add them to a class
+    async registerStudentInClass(className: string, studentData: any): Promise<void> {
+        // We need a secondary client to sign up the student without logging out the current staff
+        const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL!;
+        const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!;
+
+        const tempClient = createClient(supabaseUrl, supabaseAnonKey, {
+            auth: {
+                persistSession: false,
+                autoRefreshToken: false,
+                detectSessionInUrl: false
+            }
+        });
+
+        // 1. Sign up the user in Auth
+        const { data: authData, error: authError } = await tempClient.auth.signUp({
+            email: studentData.email,
+            password: studentData.password,
+            options: {
+                data: {
+                    name: studentData.name,
+                    role: 'student',
+                    class: className,
+                    year: studentData.year,
+                    roll_number: studentData.rollNumber,
+                    system_number: studentData.systemNumber,
+                    is_approved: true, // Manual registration by staff is pre-approved
+                }
+            }
+        });
+
+        if (authError) throw authError;
+        if (!authData.user) throw new Error('Registration failed');
     }
 };

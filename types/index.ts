@@ -12,6 +12,7 @@ export interface User {
   department?: string;
   isApproved?: boolean;
   deviceId?: string | null;
+  pendingClasses?: string;
   createdAt: string;
 }
 
@@ -23,6 +24,7 @@ export interface StudentProfile extends User {
   systemNumber: string;
   isApproved: boolean;
   deviceId: string | null;
+  pendingClasses?: string;
 }
 
 export interface StaffProfile extends User {

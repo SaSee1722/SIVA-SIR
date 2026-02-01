@@ -98,11 +98,7 @@ export default function ClassManagementScreen() {
     const [department, setDepartment] = useState('');
     const [year, setYear] = useState('');
 
-    // Add Student state
-    const [showAddStudentModal, setShowAddStudentModal] = useState(false);
-    const [studentSearchQuery, setStudentSearchQuery] = useState('');
-    const [searchResults, setSearchResults] = useState<any[]>([]);
-    const [searching, setSearching] = useState(false);
+    // Student Management state
 
     const yearOptions = ['I YEAR', 'II YEAR', 'III YEAR', 'IV YEAR'];
 
@@ -127,66 +123,26 @@ export default function ClassManagementScreen() {
     const handleSelectClass = async (cls: Class) => {
         setSelectedClass(cls);
         setLoadingStudents(true);
+        setStudents([]); // Clear previous to avoid UI confusion
         try {
+            console.log('[ClassManagement] Loading students for:', cls.className);
             const classStudents = await classService.getClassStudents(cls.className);
             setStudents(classStudents);
-        } catch (error) {
-            console.error('Error loading students:', error);
-            showAlert('Error', 'Failed to load student list');
+            console.log('[ClassManagement] Students loaded:', classStudents.length);
+        } catch (error: any) {
+            console.error('[ClassManagement] Error loading students:', error);
+            const message = error.message?.includes('recursion')
+                ? 'Database permission error. Please run the SQL migration.'
+                : 'Failed to load student list';
+            showAlert('Error', message);
+            setSelectedClass(null); // Close modal on fatal error to avoid freeze
         } finally {
             setLoadingStudents(false);
         }
     };
 
-    const handleSearchStudents = async (query: string) => {
-        setStudentSearchQuery(query);
-        console.log('Searching for students:', query);
-        if (query.trim().length < 2) {
-            setSearchResults([]);
-            return;
-        }
 
-        if (!selectedClass) {
-            console.log('No class selected for search');
-            return;
-        }
 
-        setSearching(true);
-        try {
-            const results = await classService.searchStudentsToEnroll(query, selectedClass.className);
-            console.log('Found students:', results.length);
-            setSearchResults(results);
-        } catch (error) {
-            console.error('Error searching students:', error);
-        } finally {
-            setSearching(false);
-        }
-    };
-
-    const handleAddStudent = async (studentId: string) => {
-        if (!selectedClass) {
-            console.log('No class selected for adding student');
-            return;
-        }
-        console.log('Adding student:', studentId, 'to class:', selectedClass.className);
-        try {
-            await classService.addStudentToClass(studentId, selectedClass.className);
-            console.log('Student added successfully in database');
-
-            // Refresh student list
-            const classStudents = await classService.getClassStudents(selectedClass.className);
-            setStudents(classStudents);
-            console.log('Refreshed student list, count:', classStudents.length);
-
-            setShowAddStudentModal(false);
-            setStudentSearchQuery('');
-            setSearchResults([]);
-            showAlert('Success', 'Student added to class');
-        } catch (error) {
-            console.error('Error adding student:', error);
-            showAlert('Error', 'Failed to add student to class');
-        }
-    };
 
     const handleRemoveStudent = async (studentId: string, studentName: string) => {
         if (!selectedClass) return;
@@ -346,25 +302,19 @@ export default function ClassManagementScreen() {
                     <View style={styles.modalOverlay}>
                         <View style={[styles.modalContent, { backgroundColor: colors.staff.background, height: '80%' }]}>
                             <View style={styles.modalHeader}>
-                                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                                    <View>
-                                        <Text style={[styles.modalTitle, { color: colors.staff.text }]}>
-                                            {selectedClass?.className}
-                                        </Text>
-                                        <Text style={[styles.studentCountSub, { color: colors.staff.textSecondary }]}>
-                                            {students.length} Students Enrolled
-                                        </Text>
-                                    </View>
-                                    <Pressable
-                                        onPress={() => setShowAddStudentModal(true)}
-                                        style={[styles.addStudentBtn, { backgroundColor: colors.staff.primary + '15' }]}
-                                        hitSlop={10}
-                                    >
-                                        <MaterialIcons name="person-add" size={20} color={colors.staff.primary} />
-                                        <Text style={[styles.addStudentBtnText, { color: colors.staff.primary }]}>Add</Text>
-                                    </Pressable>
+                                <View style={{ flex: 1, marginRight: spacing.md }}>
+                                    <Text style={[styles.modalTitle, { color: colors.staff.text }]} numberOfLines={1}>
+                                        {selectedClass?.className}
+                                    </Text>
+                                    <Text style={[styles.studentCountSub, { color: colors.staff.textSecondary }]}>
+                                        {students.length} Students Enrolled
+                                    </Text>
                                 </View>
-                                <Pressable onPress={() => setSelectedClass(null)} hitSlop={8}>
+                                <Pressable
+                                    onPress={() => setSelectedClass(null)}
+                                    hitSlop={12}
+                                    style={{ marginLeft: spacing.md }}
+                                >
                                     <MaterialIcons name="close" size={24} color={colors.staff.text} />
                                 </Pressable>
                             </View>
@@ -541,86 +491,6 @@ export default function ClassManagementScreen() {
                     </View>
                 </Modal>
 
-                {/* Add Student Search Modal */}
-                <Modal
-                    visible={showAddStudentModal}
-                    transparent={true}
-                    animationType="fade"
-                    onRequestClose={() => setShowAddStudentModal(false)}
-                >
-                    <View style={styles.modalOverlay}>
-                        <View style={[styles.modalContent, { backgroundColor: colors.staff.background, height: '70%' }]}>
-                            <View style={styles.modalHeader}>
-                                <Text style={[styles.modalTitle, { color: colors.staff.text }]}>
-                                    Add Student to {selectedClass?.className}
-                                </Text>
-                                <Pressable
-                                    onPress={() => {
-                                        setShowAddStudentModal(false);
-                                        setStudentSearchQuery('');
-                                        setSearchResults([]);
-                                    }}
-                                    hitSlop={8}
-                                >
-                                    <MaterialIcons name="close" size={24} color={colors.staff.text} />
-                                </Pressable>
-                            </View>
-
-                            <View style={styles.modalBody}>
-                                <Input
-                                    placeholder="Search by name, roll number or email..."
-                                    value={studentSearchQuery}
-                                    onChangeText={handleSearchStudents}
-                                    role="staff"
-                                    leftIcon={<MaterialIcons name="search" size={20} color={colors.staff.textSecondary} />}
-                                />
-
-                                <View style={{ flex: 1, marginTop: spacing.md }}>
-                                    {searching ? (
-                                        <ActivityIndicator size="small" color={colors.staff.primary} />
-                                    ) : studentSearchQuery.length < 2 ? (
-                                        <Text style={{ textAlign: 'center', color: colors.staff.textSecondary, marginTop: spacing.xl }}>
-                                            Type at least 2 characters to search
-                                        </Text>
-                                    ) : searchResults.length === 0 ? (
-                                        <Text style={{ textAlign: 'center', color: colors.staff.textSecondary, marginTop: spacing.xl }}>
-                                            No eligible students found
-                                        </Text>
-                                    ) : (
-                                        <FlatList
-                                            data={searchResults}
-                                            keyExtractor={(item) => item.id}
-                                            keyboardShouldPersistTaps="handled"
-                                            renderItem={({ item }) => (
-                                                <Pressable
-                                                    onPress={() => handleAddStudent(item.id)}
-                                                    style={({ pressed }) => [
-                                                        styles.searchResultItem,
-                                                        { borderColor: colors.staff.border },
-                                                        pressed && { backgroundColor: colors.staff.surfaceLight }
-                                                    ]}
-                                                >
-                                                    <View style={[styles.studentAvatar, { width: 32, height: 32, borderRadius: 16 }]}>
-                                                        <Text style={[styles.avatarText, { fontSize: 12 }]}>
-                                                            {item.name.charAt(0).toUpperCase()}
-                                                        </Text>
-                                                    </View>
-                                                    <View style={{ flex: 1, marginLeft: spacing.sm }}>
-                                                        <Text style={[styles.studentName, { fontSize: 14 }]}>{item.name}</Text>
-                                                        <Text style={{ fontSize: 12, color: colors.staff.textSecondary }}>
-                                                            {item.rollNumber || 'No Roll'} • {item.email}
-                                                        </Text>
-                                                    </View>
-                                                    <MaterialIcons name="add-circle-outline" size={24} color={colors.staff.primary} />
-                                                </Pressable>
-                                            )}
-                                        />
-                                    )}
-                                </View>
-                            </View>
-                        </View>
-                    </View>
-                </Modal>
             </View>
         </Screen>
     );

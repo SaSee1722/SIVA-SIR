@@ -24,6 +24,7 @@ export const authService = {
           department: additionalData.department,
           is_approved: role === 'staff', // Staff approved by default (or admin), students need approval
           device_id: null,
+          pending_classes: additionalData.pendingClasses,
         }
       }
     });
@@ -68,7 +69,7 @@ export const authService = {
     }
 
     console.log('[AuthService] Login successful, fetching profile for:', data.user.id);
-    const user = await this.getUserProfile(data.user.id, data.user);
+    const user = await this.getUserProfile(data.user.id, data.user, true);
     if (!user) throw new Error('Profile not found');
 
     // Check if the role matches the expected role for this portal
@@ -84,8 +85,11 @@ export const authService = {
   // Simple cache to prevent redundant profile fetches during login/auth events
   _profileCache: {} as Record<string, { data: User, timestamp: number }>,
 
-  async getUserProfile(userId: string, authUser?: any): Promise<User | null> {
+  async getUserProfile(userId: string, authUser?: any, forceRefresh = false): Promise<User | null> {
     const supabase = getSharedSupabaseClient();
+    if (forceRefresh) {
+      delete this._profileCache[userId];
+    }
 
     // Return from cache if recent (last 10 seconds)
     const cached = this._profileCache[userId];
@@ -120,6 +124,7 @@ export const authService = {
             systemNumber: profile.system_number,
             isApproved: profile.is_approved,
             deviceId: profile.device_id,
+            pendingClasses: profile.pending_classes,
             createdAt: profile.created_at,
           } as User;
 
@@ -164,6 +169,7 @@ export const authService = {
         department: meta.department,
         isApproved: meta.is_approved,
         deviceId: meta.device_id,
+        pendingClasses: meta.pending_classes,
         createdAt: userToUse.created_at,
       } as User;
 
@@ -234,6 +240,7 @@ export const authService = {
       systemNumber: profile.system_number,
       isApproved: profile.is_approved ?? true, // Default to true for legacy students
       deviceId: profile.device_id,
+      pendingClasses: profile.pending_classes,
       createdAt: profile.created_at
     })) as User[];
   },
@@ -242,23 +249,27 @@ export const authService = {
     const supabase = getSharedSupabaseClient();
 
     const mappedUpdates = { ...updates };
-    if (mappedUpdates.rollNumber) {
+    if ('rollNumber' in mappedUpdates) {
       mappedUpdates.roll_number = mappedUpdates.rollNumber;
       delete mappedUpdates.rollNumber;
     }
-    if (mappedUpdates.systemNumber) {
+    if ('systemNumber' in mappedUpdates) {
       mappedUpdates.system_number = mappedUpdates.systemNumber;
       delete mappedUpdates.systemNumber;
     }
-    if (mappedUpdates.createdAt) {
+    if ('pendingClasses' in mappedUpdates) {
+      mappedUpdates.pending_classes = mappedUpdates.pendingClasses;
+      delete mappedUpdates.pendingClasses;
+    }
+    if ('createdAt' in mappedUpdates) {
       mappedUpdates.created_at = mappedUpdates.createdAt;
       delete mappedUpdates.createdAt;
     }
-    if (mappedUpdates.isApproved !== undefined) {
+    if ('isApproved' in mappedUpdates) {
       mappedUpdates.is_approved = mappedUpdates.isApproved;
       delete mappedUpdates.isApproved;
     }
-    if (mappedUpdates.deviceId !== undefined) {
+    if ('deviceId' in mappedUpdates) {
       mappedUpdates.device_id = mappedUpdates.deviceId;
       delete mappedUpdates.deviceId;
     }

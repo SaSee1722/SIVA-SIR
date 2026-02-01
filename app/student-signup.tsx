@@ -25,11 +25,14 @@ export default function StudentSignupScreen() {
   const [availableYears, setAvailableYears] = useState<string[]>([]);
   const [showClassPicker, setShowClassPicker] = useState(false);
   const [showYearPicker, setShowYearPicker] = useState(false);
+  const [department, setDepartment] = useState('');
+  const [showDepartmentPicker, setShowDepartmentPicker] = useState(false);
   const { signup } = useAuth();
   const router = useRouter();
   const { showAlert } = useAlert();
 
   const DEFAULT_YEARS = useMemo(() => ['I YEAR', 'II YEAR', 'III YEAR', 'IV YEAR'], []);
+  const DEPARTMENTS = useMemo(() => ['CSE', 'EEE', 'ECE', 'IT', 'MECH', 'CIVIL'], []);
 
   const loadClasses = useCallback(async () => {
     try {
@@ -76,8 +79,8 @@ export default function StudentSignupScreen() {
   };
 
   const handleSignup = async () => {
-    if (!name || !email || !password || selectedClasses.length === 0 || !year || !rollNumber || !systemNumber) {
-      showAlert('Error', 'Please fill in all fields (Select at least one class)');
+    if (!name || !email || !password || selectedClasses.length === 0 || !year || !rollNumber || !systemNumber || !department) {
+      showAlert('Error', 'Please fill in all fields (Select classes and department)');
       return;
     }
 
@@ -85,10 +88,11 @@ export default function StudentSignupScreen() {
     try {
       await signup(email, password, 'student', {
         name,
-        class: selectedClasses.join(', '),
+        pendingClasses: selectedClasses.join(', '),
         year,
         rollNumber,
         systemNumber,
+        department,
       });
       router.replace('/student-dashboard');
     } catch (error: any) {
@@ -158,7 +162,7 @@ export default function StudentSignupScreen() {
             />
 
             <Input
-              label="Register Number"
+              label="Reg No"
               value={rollNumber}
               onChangeText={setRollNumber}
               placeholder="e.g., 2112001"
@@ -169,8 +173,17 @@ export default function StudentSignupScreen() {
               label="System Number"
               value={systemNumber}
               onChangeText={setSystemNumber}
-              placeholder="e.g., SYS-01"
+              placeholder="e.g., SYS-25"
               role="student"
+            />
+
+            <Input
+              label="Department"
+              value={department}
+              onChangeText={setDepartment}
+              placeholder="e.g., CSE"
+              role="student"
+              autoCapitalize="characters"
             />
 
             {/* Year Picker */}
@@ -250,6 +263,40 @@ export default function StudentSignupScreen() {
             </Pressable>
           </View>
         </View>
+
+        {/* Department Picker Modal */}
+        <Modal
+          visible={showDepartmentPicker}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setShowDepartmentPicker(false)}
+        >
+          <Pressable
+            style={styles.modalOverlay}
+            onPress={() => setShowDepartmentPicker(false)}
+          >
+            <View style={styles.pickerContainer}>
+              <Text style={styles.pickerTitle}>Select Department</Text>
+              {DEPARTMENTS.map((dept) => (
+                <Pressable
+                  key={dept}
+                  style={styles.pickerOption}
+                  onPress={() => {
+                    setDepartment(dept);
+                    setShowDepartmentPicker(false);
+                  }}
+                >
+                  <Text style={[
+                    styles.pickerOptionText,
+                    department === dept && styles.pickerOptionActive
+                  ]}>
+                    {dept}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          </Pressable>
+        </Modal>
 
         {/* Year Picker Modal */}
         <Modal
@@ -501,5 +548,31 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     borderTopWidth: 1,
     borderTopColor: colors.common.gray200,
+  },
+  pickerContainer: {
+    backgroundColor: colors.common.white,
+    borderTopLeftRadius: borderRadius.xl,
+    borderTopRightRadius: borderRadius.xl,
+    padding: spacing.xl,
+    paddingBottom: spacing.xxl,
+  },
+  pickerTitle: {
+    ...typography.h3,
+    marginBottom: spacing.lg,
+    textAlign: 'center',
+  },
+  pickerOption: {
+    paddingVertical: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.common.gray100,
+  },
+  pickerOptionText: {
+    ...typography.body,
+    textAlign: 'center',
+    color: colors.common.gray700,
+  },
+  pickerOptionActive: {
+    color: colors.student.primary,
+    fontWeight: '700',
   },
 });

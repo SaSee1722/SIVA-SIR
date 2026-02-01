@@ -9,6 +9,7 @@ interface AuthContextType {
   signup: (email: string, password: string, role: 'student' | 'staff', additionalData: any) => Promise<void>;
   logout: () => Promise<void>;
   updateProfile: (updates: Partial<User>) => Promise<void>;
+  refreshUser: () => Promise<void>;
 }
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -89,8 +90,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(updatedUser);
   };
 
+  const refreshUser = async () => {
+    if (!user) return;
+    try {
+      // Clear cache by forcing a fetch
+      const freshUser = await authService.getUserProfile(user.id, null, true);
+      if (freshUser) {
+        setUser(freshUser);
+      }
+    } catch (error) {
+      console.error('Refresh user error:', error);
+    }
+  };
+
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, signup, logout, updateProfile }}>
+    <AuthContext.Provider value={{ user, isLoading, login, signup, logout, updateProfile, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );

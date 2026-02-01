@@ -249,8 +249,20 @@ export function FileList({ files, role = 'student', showStudentInfo = false, onD
               />
             ) : (
               <WebView
-                source={{ uri: previewFile?.thumbnailUri || '' }}
-                style={styles.fullWeb}
+                source={{
+                  uri: previewFile?.fileType.includes('pdf')
+                    ? `https://docs.google.com/viewer?url=${encodeURIComponent(previewFile?.thumbnailUri || '')}&embedded=true`
+                    : previewFile?.thumbnailUri || ''
+                }}
+                style={[styles.fullWeb, { backgroundColor: '#FFFFFF' }]}
+                originWhitelist={['*']}
+                scalesPageToFit={true}
+                startInLoadingState={true}
+                renderLoading={() => (
+                  <View style={[styles.loaderContainer, StyleSheet.absoluteFill]}>
+                    <ActivityIndicator size="large" color={theme.primary} />
+                  </View>
+                )}
               />
             )}
           </View>
@@ -400,5 +412,10 @@ const styles = StyleSheet.create({
     width: width,
     height: height - 80,
     backgroundColor: 'transparent',
+  },
+  loaderContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: colors.common.white,
   },
 });

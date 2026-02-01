@@ -460,15 +460,22 @@ export default function StaffDashboardScreen() {
   const handleApproveStudent = async (studentId: string) => {
     try {
       console.log('Approving student:', studentId);
-      await authService.updateProfile(studentId, { isApproved: true });
+      const student = allStudents.find(s => s.id === studentId);
+
+      if (student?.pendingClasses) {
+        // More granular approval: approve each pending class
+        const classes = student.pendingClasses.split(',').map(c => c.trim()).filter(c => c.length > 0);
+        for (const cls of classes) {
+          await classService.approveEnrollment(studentId, cls);
+        }
+        showToast('Class requests approved', 'success');
+      } else {
+        // Legacy/Global approval
+        await authService.updateProfile(studentId, { isApproved: true });
+        showToast('Student approved successfully', 'success');
+      }
+
       console.log('Student approved successfully');
-
-      // Immediately update local state for instant UI feedback
-      setAllStudents(prev => prev.map(s =>
-        s.id === studentId ? { ...s, isApproved: true } : s
-      ));
-
-      showToast('Student approved successfully', 'success');
 
       // Reload from database to ensure consistency
       await loadAllStudents();
@@ -835,7 +842,7 @@ export default function StaffDashboardScreen() {
                           </View>
                           <View style={{ flex: 1, marginLeft: spacing.sm }}>
                             <Text style={[styles.absenteeName, { color: colors.staff.text }]}>{item.studentName}</Text>
-                            <Text style={[styles.absenteeDetails, { color: colors.staff.textSecondary }]}>Roll: {item.rollNumber}</Text>
+                            <Text style={[styles.absenteeDetails, { color: colors.staff.textSecondary }]}>Reg: {item.rollNumber}</Text>
                           </View>
                         </View>
                       )}
@@ -1384,7 +1391,7 @@ export default function StaffDashboardScreen() {
         <MaterialIcons name="search" size={20} color={colors.staff.textSecondary} />
         <TextInput
           style={styles.studentSearchInput}
-          placeholder="Search by name or roll number..."
+          placeholder="Search by name or reg number..."
           value={searchQuery}
           onChangeText={setSearchQuery}
         />
@@ -1406,11 +1413,25 @@ export default function StaffDashboardScreen() {
                 </View>
                 <View style={{ flex: 1, marginLeft: spacing.md }}>
                   <Text style={styles.studentName}>{item.name}</Text>
-                  <Text style={styles.studentMeta}>{item.rollNumber} • {item.class}</Text>
+                  <Text style={styles.studentMeta}>
+                    {item.rollNumber} • {item.year}
+                  </Text>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginTop: 4 }}>
+                    {item.class ? (
+                      <View style={{ backgroundColor: '#E1EFFE', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, marginRight: 4, marginBottom: 4 }}>
+                        <Text style={{ fontSize: 10, color: '#1E429F' }}>Joined: {item.class}</Text>
+                      </View>
+                    ) : null}
+                    {item.pendingClasses ? (
+                      <View style={{ backgroundColor: '#FEF3C7', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, marginRight: 4, marginBottom: 4 }}>
+                        <Text style={{ fontSize: 10, color: '#92400E' }}>Pending: {item.pendingClasses}</Text>
+                      </View>
+                    ) : null}
+                  </View>
                 </View>
-                <View style={[styles.approvalStatus, { backgroundColor: item.isApproved ? '#DEF7EC' : '#FDE8E8' }]}>
-                  <Text style={[styles.approvalStatusText, { color: item.isApproved ? '#03543F' : '#9B1C1C' }]}>
-                    {item.isApproved ? 'Approved' : 'Pending'}
+                <View style={[styles.approvalStatus, { backgroundColor: (!item.isApproved || item.pendingClasses) ? '#FDE8E8' : '#DEF7EC' }]}>
+                  <Text style={[styles.approvalStatusText, { color: (!item.isApproved || item.pendingClasses) ? '#9B1C1C' : '#03543F' }]}>
+                    {item.pendingClasses ? 'Action Needed' : (item.isApproved ? 'Approved' : 'Pending')}
                   </Text>
                 </View>
               </View>
@@ -1429,7 +1450,7 @@ export default function StaffDashboardScreen() {
               </View>
 
               <View style={styles.studentCardActions}>
-                {!item.isApproved && (
+                {(!item.isApproved || item.pendingClasses) && (
                   <Button
                     title="Approve"
                     onPress={() => handleApproveStudent(item.id)}

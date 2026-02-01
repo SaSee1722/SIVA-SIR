@@ -56,7 +56,7 @@ export default function NotificationsScreen() {
     if (!user) return null;
 
     return (
-        <Screen role="student">
+        <Screen role="student" scrollable={false}>
             <View style={styles.container}>
                 {/* Header */}
                 <View style={styles.header}>
