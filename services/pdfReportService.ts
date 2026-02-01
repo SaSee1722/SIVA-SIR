@@ -443,7 +443,22 @@ export const pdfReportService = {
               ${records.map((record) => `
                   <div class="record-card">
                     <div class="record-info">
-                      <div class="student-name">${record.studentName}</div>
+                      <div style="display: flex; align-items: center; gap: 8px;">
+                        <div class="student-name">${record.studentName}</div>
+                        ${record.status ? `
+                          <span style="
+                            background: ${record.status === 'on_duty' ? '#FEF3C7' : '#DEF7EC'};
+                            color: ${record.status === 'on_duty' ? '#92400E' : '#03543F'};
+                            padding: 2px 8px;
+                            border-radius: 12px;
+                            font-size: 10px;
+                            font-weight: 600;
+                            text-transform: uppercase;
+                          ">
+                            ${record.status === 'on_duty' ? 'On Duty' : 'Present'}
+                          </span>
+                        ` : ''}
+                      </div>
                       <div class="record-details">
                         Roll: ${record.rollNumber}${record.systemNumber ? `<span class="detail-separator">•</span>System: ${record.systemNumber}` : ''}<span class="detail-separator">•</span>Class: ${record.class}
                       </div>

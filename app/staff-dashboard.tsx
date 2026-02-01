@@ -1341,7 +1341,10 @@ export default function StaffDashboardScreen() {
                         <Text style={styles.previewItemRoll}>{item.rollNumber}</Text>
                       </View>
                       <Text style={[styles.previewItemStatus, { color: item.type === 'present' ? colors.staff.success : '#EF4444' }]}>
-                        {item.type.toUpperCase()}
+                        {item.type === 'present'
+                          ? (item.status === 'on_duty' ? 'ON DUTY' : 'PRESENT')
+                          : 'ABSENT'
+                        }
                       </Text>
                     </View>
                   )}
