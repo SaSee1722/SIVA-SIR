@@ -280,6 +280,7 @@ export const classService = {
     // Add a student to a class
     async addStudentToClass(studentId: string, className: string): Promise<void> {
         const supabase = getSharedSupabaseClient();
+        const targetClass = className.trim();
 
         // Get current class list for the student
         const { data, error } = await supabase
@@ -290,9 +291,12 @@ export const classService = {
 
         if (error) throw error;
 
-        const currentClasses = data.class ? data.class.split(',').map((c: string) => c.trim()) : [];
-        if (!currentClasses.includes(className)) {
-            currentClasses.push(className);
+        const currentClasses = data.class
+            ? data.class.split(',').map((c: string) => c.trim()).filter((c: string) => c.length > 0)
+            : [];
+
+        if (!currentClasses.some((c: string) => c.toLowerCase() === targetClass.toLowerCase())) {
+            currentClasses.push(targetClass);
             const { error: updateError } = await supabase
                 .from('profiles')
                 .update({ class: currentClasses.join(', ') })
@@ -305,6 +309,7 @@ export const classService = {
     // Remove a student from a class
     async removeStudentFromClass(studentId: string, className: string): Promise<void> {
         const supabase = getSharedSupabaseClient();
+        const targetClass = className.trim();
 
         // Get current class list for the student
         const { data, error } = await supabase
@@ -316,12 +321,12 @@ export const classService = {
         if (error) throw error;
 
         if (data.class) {
-            const currentClasses = data.class.split(',').map((c: string) => c.trim());
-            const updatedClasses = currentClasses.filter(c => c !== className);
+            const currentClasses = data.class.split(',').map((c: string) => c.trim()).filter((c: string) => c.length > 0);
+            const updatedClasses = currentClasses.filter((c: string) => c.toLowerCase() !== targetClass.toLowerCase());
 
             const { error: updateError } = await supabase
                 .from('profiles')
-                .update({ class: updatedClasses.join(', ') })
+                .update({ class: updatedClasses.length > 0 ? updatedClasses.join(', ') : null })
                 .eq('id', studentId);
 
             if (updateError) throw updateError;

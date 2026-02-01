@@ -140,16 +140,21 @@ export default function ClassManagementScreen() {
 
     const handleSearchStudents = async (query: string) => {
         setStudentSearchQuery(query);
+        console.log('Searching for students:', query);
         if (query.trim().length < 2) {
             setSearchResults([]);
             return;
         }
 
-        if (!selectedClass) return;
+        if (!selectedClass) {
+            console.log('No class selected for search');
+            return;
+        }
 
         setSearching(true);
         try {
             const results = await classService.searchStudentsToEnroll(query, selectedClass.className);
+            console.log('Found students:', results.length);
             setSearchResults(results);
         } catch (error) {
             console.error('Error searching students:', error);
@@ -159,12 +164,20 @@ export default function ClassManagementScreen() {
     };
 
     const handleAddStudent = async (studentId: string) => {
-        if (!selectedClass) return;
+        if (!selectedClass) {
+            console.log('No class selected for adding student');
+            return;
+        }
+        console.log('Adding student:', studentId, 'to class:', selectedClass.className);
         try {
             await classService.addStudentToClass(studentId, selectedClass.className);
+            console.log('Student added successfully in database');
+
             // Refresh student list
             const classStudents = await classService.getClassStudents(selectedClass.className);
             setStudents(classStudents);
+            console.log('Refreshed student list, count:', classStudents.length);
+
             setShowAddStudentModal(false);
             setStudentSearchQuery('');
             setSearchResults([]);
@@ -345,6 +358,7 @@ export default function ClassManagementScreen() {
                                     <Pressable
                                         onPress={() => setShowAddStudentModal(true)}
                                         style={[styles.addStudentBtn, { backgroundColor: colors.staff.primary + '15' }]}
+                                        hitSlop={10}
                                     >
                                         <MaterialIcons name="person-add" size={20} color={colors.staff.primary} />
                                         <Text style={[styles.addStudentBtnText, { color: colors.staff.primary }]}>Add</Text>
@@ -576,6 +590,7 @@ export default function ClassManagementScreen() {
                                         <FlatList
                                             data={searchResults}
                                             keyExtractor={(item) => item.id}
+                                            keyboardShouldPersistTaps="handled"
                                             renderItem={({ item }) => (
                                                 <Pressable
                                                     onPress={() => handleAddStudent(item.id)}
