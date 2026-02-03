@@ -117,16 +117,24 @@ export const authService = {
         const { data: profile, error: profileError } = result;
 
         if (profile) {
-          console.log('[AuthService] Profile found successfully. Name:', profile.name);
+          console.log('[AuthService] Profile found successfully from DB. Merging with metadata fallback.');
+          
+          // Get metadata for merging in case DB is missing fields (e.g. broken trigger)
+          let meta = authUser?.user_metadata || {};
+          if (!authUser) {
+             const { data: { user } } = await supabase.auth.getUser();
+             meta = user?.user_metadata || {};
+          }
+
           const userObj = {
             ...profile,
-            rollNumber: profile.roll_number,
-            systemNumber: profile.system_number,
-            isApproved: profile.is_approved,
-            deviceId: profile.device_id,
-            pushToken: profile.push_token,
-            push_token: profile.push_token,
-            pendingClasses: profile.pending_classes,
+            rollNumber: profile.roll_number || meta.roll_number || meta.rollNumber,
+            systemNumber: profile.system_number || meta.system_number || meta.systemNumber,
+            isApproved: profile.is_approved !== null ? profile.is_approved : (meta.is_approved ?? meta.isApproved),
+            deviceId: profile.device_id || meta.device_id || meta.deviceId,
+            pushToken: profile.push_token || meta.push_token || meta.pushToken,
+            push_token: profile.push_token || meta.push_token || meta.pushToken,
+            pendingClasses: profile.pending_classes || meta.pending_classes || meta.pendingClasses,
             createdAt: profile.created_at,
           } as User;
 
