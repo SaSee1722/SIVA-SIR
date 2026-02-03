@@ -166,12 +166,12 @@ export const authService = {
         name: meta.name || 'User',
         class: meta.class,
         year: meta.year,
-        rollNumber: meta.roll_number,
-        systemNumber: meta.system_number,
+        rollNumber: meta.roll_number || meta.rollNumber,
+        systemNumber: meta.system_number || meta.systemNumber,
         department: meta.department,
-        isApproved: meta.is_approved,
-        deviceId: meta.device_id,
-        pendingClasses: meta.pending_classes,
+        isApproved: meta.is_approved || meta.isApproved,
+        deviceId: meta.device_id || meta.deviceId,
+        pendingClasses: meta.pending_classes || meta.pendingClasses,
         createdAt: userToUse.created_at,
       } as User;
 
@@ -341,4 +341,8 @@ export const authService = {
     const supabase = getSharedSupabaseClient();
     return supabase.auth.onAuthStateChange(callback);
   },
+
+  getSupabaseClient() {
+    return getSharedSupabaseClient();
+  }
 };

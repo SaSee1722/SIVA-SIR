@@ -1,4 +1,4 @@
-import React, { createContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useState, useEffect, ReactNode, useCallback, useRef } from 'react';
 import { User } from '@/types';
 import { authService } from '@/services/authService';
 
@@ -17,13 +17,68 @@ export const AuthContext = createContext<AuthContextType | undefined>(undefined)
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const profileSubscriptionRef = useRef<any>(null);
+
+  const setupProfileSubscription = useCallback((userId: string) => {
+    const supabase = authService.getSupabaseClient();
+    
+    // Clean up existing if any
+    if (profileSubscriptionRef.current) {
+      profileSubscriptionRef.current.unsubscribe();
+    }
+
+    console.log('[AuthContext] Setting up real-time profile subscription for:', userId);
+    
+    const channel = supabase
+      .channel(`profile-updates-${userId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'profiles',
+          filter: `id=eq.${userId}`,
+        },
+        async (payload: any) => {
+          console.log('[AuthContext] Profile real-time update received:', payload.new);
+          // Refresh user data with force refresh to clear cache
+          const freshUser = await authService.getUserProfile(userId, null, true);
+          if (freshUser) {
+            setUser(prev => {
+              // Only update if something changed
+              if (JSON.stringify(prev) !== JSON.stringify(freshUser)) {
+                return freshUser;
+              }
+              return prev;
+            });
+          }
+        }
+      )
+      .subscribe();
+
+    profileSubscriptionRef.current = channel;
+  }, []);
+
+  const loadUser = useCallback(async () => {
+    try {
+      const currentUser = await authService.getCurrentUser();
+      setUser(currentUser);
+      if (currentUser) {
+        setupProfileSubscription(currentUser.id);
+      }
+    } catch (error) {
+      console.error('Initial load user error:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [setupProfileSubscription]);
 
   useEffect(() => {
     // Initial user load
     loadUser();
 
     // Subscribe to auth state changes
-    const { data: { subscription } } = authService.onAuthStateChange(async (event, session) => {
+    const { data: { subscription: authSubscription } } = authService.onAuthStateChange(async (event, session) => {
       console.log('[AuthContext] Auth event:', event);
       try {
         if (session?.user) {
@@ -35,11 +90,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
           console.log('[AuthContext] Session user confirmed, fetching profile...');
           const currentUser = await authService.getUserProfile(session.user.id, session.user);
-          console.log('[AuthContext] Profile result:', currentUser ? 'Success' : 'Missing');
           setUser(currentUser);
+          
+          // Set up real-time subscription
+          setupProfileSubscription(session.user.id);
         } else {
           console.log('[AuthContext] No session user, clearing state');
           setUser(null);
+          // Cleanup subscription
+          if (profileSubscriptionRef.current) {
+            profileSubscriptionRef.current.unsubscribe();
+            profileSubscriptionRef.current = null;
+          }
         }
       } catch (error) {
         console.error('[AuthContext] Error in onAuthStateChange:', error);
@@ -49,24 +111,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
 
     return () => {
-      subscription.unsubscribe();
+      authSubscription.unsubscribe();
+      if (profileSubscriptionRef.current) {
+        profileSubscriptionRef.current.unsubscribe();
+      }
     };
-  }, []);
-
-  const loadUser = async () => {
-    try {
-      const currentUser = await authService.getCurrentUser();
-      setUser(currentUser);
-    } catch (error) {
-      console.error('Initial load user error:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  }, [loadUser, setupProfileSubscription]);
 
   const login = async (email: string, password: string, role?: 'student' | 'staff') => {
     const loggedInUser = await authService.login(email, password, role);
     setUser(loggedInUser);
+    if (loggedInUser) {
+      setupProfileSubscription(loggedInUser.id);
+    }
   };
 
   const signup = async (
@@ -77,9 +134,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   ) => {
     const newUser = await authService.signup(email, password, role, additionalData);
     setUser(newUser);
+    if (newUser) {
+      setupProfileSubscription(newUser.id);
+    }
   };
 
   const logout = async () => {
+    if (profileSubscriptionRef.current) {
+      profileSubscriptionRef.current.unsubscribe();
+      profileSubscriptionRef.current = null;
+    }
     await authService.logout();
     setUser(null);
   };
@@ -93,7 +157,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const refreshUser = async () => {
     if (!user) return;
     try {
-      // Clear cache by forcing a fetch
       const freshUser = await authService.getUserProfile(user.id, null, true);
       if (freshUser) {
         setUser(freshUser);
