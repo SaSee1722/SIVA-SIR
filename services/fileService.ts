@@ -1,5 +1,6 @@
 import { getSharedSupabaseClient } from '@/template/core/client';
 import { UploadedFile } from '@/types';
+import { notificationService } from './notificationService';
 
 export const fileService = {
   async uploadFile(file: Omit<UploadedFile, 'id' | 'uploadedAt'>): Promise<UploadedFile> {
@@ -71,6 +72,21 @@ export const fileService = {
       .single();
 
     if (error) throw error;
+
+    // Send notification to recipient
+    if (file.recipientId) {
+      try {
+        await notificationService.sendNotification(
+          file.recipientId,
+          'New File Received',
+          `${file.studentName} sent you a new file: ${file.fileName}`,
+          'general',
+          { fileId: data.id, studentId: file.studentId }
+        );
+      } catch (notifyErr) {
+        console.error('[FileService] Failed to notify target:', notifyErr);
+      }
+    }
 
     return {
       id: data.id,
