@@ -137,7 +137,7 @@ export default function StudentDashboardScreen() {
     setUpdating(true);
     try {
       const approvedClasses = studentProfile?.class ? studentProfile.class.split(',').map(s => s.trim()) : [];
-      // New pending are those in editClasses but NOT in approvedClasses
+      // Only classes that are NOT already approved should go into pending
       const newPendingClasses = editClasses.filter(c => !approvedClasses.includes(c));
 
       // Check if anything actually changed
@@ -156,7 +156,8 @@ export default function StudentDashboardScreen() {
 
       await updateProfile({
         year: editYear,
-        pendingClasses: newPendingClasses.join(', '),
+        class: approvedClasses.join(', '), // Keep existing approved classes
+        pendingClasses: newPendingClasses.join(', '), // Set new pending requests
         systemNumber: editSystemNumber,
         department: editDepartment,
       });
@@ -207,18 +208,16 @@ export default function StudentDashboardScreen() {
         );
 
         // Fetch staff profile to get push token
-        const staffProfile = await authService.getUserProfile(selectedStaff.id);
-        if (staffProfile?.deviceId) { // deviceId is used for push token in some places, but push_token column exists
-          // Assuming push_token column is available on profile
-          const targetToken = (staffProfile as any).push_token;
-          if (targetToken) {
-            await notificationService.sendPushNotification(
-              [targetToken],
-              'New File Received',
-              `${user?.name} shared a file: ${file.fileName}`,
-              { screen: 'staff-dashboard', fileId: uploadedFile.id }
-            );
-          }
+        const staffProfile = await authService.getUserProfile(selectedStaff.id, undefined, true);
+        const targetToken = staffProfile?.push_token || (staffProfile as any)?.push_token;
+
+        if (targetToken) {
+          await notificationService.sendPushNotification(
+            [targetToken],
+            'New File Received',
+            `${user?.name} shared a file: ${file.fileName}`,
+            { screen: 'staff-dashboard', fileId: uploadedFile.id }
+          );
         }
       } catch (notifErr) {
         console.error('Failed to send notification to staff:', notifErr);

@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { getSharedSupabaseClient } from '@/template/core/client';
 import { Class } from '@/types';
+import { notificationService } from './notificationService';
 
 export const classService = {
     // Create a new class
@@ -370,13 +371,45 @@ export const classService = {
                 .eq('id', studentId);
 
             if (updateError) throw updateError;
+
+            // Notify staff member who created the class
+            try {
+                const { data: student } = await supabase
+                    .from('profiles')
+                    .select('name')
+                    .eq('id', studentId)
+                    .single();
+
+                const { data: classData } = await supabase
+                    .from('classes')
+                    .select('created_by')
+                    .eq('class_name', targetClass)
+                    .single();
+
+                if (classData?.created_by) {
+                    await notificationService.sendNotification(
+                        classData.created_by,
+                        'Class Join Request',
+                        `${student?.name || 'A student'} requested to join your class: ${targetClass}`,
+                        'general',
+                        { studentId, className: targetClass, type: 'join_request' }
+                    );
+                }
+            } catch (notifyErr) {
+                console.error('Failed to send join request notification:', notifyErr);
+            }
         }
     },
 
     // Approve a specific enrollment request
     async approveEnrollment(studentId: string, className: string): Promise<void> {
+        return this.approveMultipleEnrollments(studentId, [className]);
+    },
+
+    // Approve multiple enrollment requests in one go (prevents clobbering)
+    async approveMultipleEnrollments(studentId: string, classNames: string[]): Promise<void> {
         const supabase = getSharedSupabaseClient();
-        const targetClass = className.trim();
+        const targets = classNames.map(c => c.trim().toLowerCase());
 
         const { data, error } = await supabase
             .from('profiles')
@@ -386,32 +419,55 @@ export const classService = {
 
         if (error) throw error;
 
-        let currentPending = data.pending_classes
+        let currentPendingArr = data.pending_classes
             ? data.pending_classes.split(',').map((c: string) => c.trim()).filter((c: string) => c.length > 0)
             : [];
 
-        let currentApproved = data.class
+        let currentApprovedArr = data.class
             ? data.class.split(',').map((c: string) => c.trim()).filter((c: string) => c.length > 0)
             : [];
 
-        // Move from pending to approved
-        if (currentPending.some((c: string) => c.toLowerCase() === targetClass.toLowerCase())) {
-            currentPending = currentPending.filter((c: string) => c.toLowerCase() !== targetClass.toLowerCase());
+        let changed = false;
 
-            if (!currentApproved.some((c: string) => c.toLowerCase() === targetClass.toLowerCase())) {
-                currentApproved.push(targetClass);
+        for (const target of targets) {
+            // Find in pending
+            const pendingIndex = currentPendingArr.findIndex((c: string) => c.toLowerCase() === target);
+            if (pendingIndex !== -1) {
+                const actualName = currentPendingArr[pendingIndex];
+                currentPendingArr.splice(pendingIndex, 1);
+
+                // Add to approved if not already there
+                if (!currentApprovedArr.some((c: string) => c.toLowerCase() === target)) {
+                    currentApprovedArr.push(actualName);
+                }
+                changed = true;
             }
+        }
 
+        if (changed) {
             const { error: updateError } = await supabase
                 .from('profiles')
                 .update({
-                    class: currentApproved.join(', '),
-                    pending_classes: currentPending.length > 0 ? currentPending.join(', ') : null,
-                    is_approved: true // Root level approval as well
+                    class: currentApprovedArr.join(', '),
+                    pending_classes: currentPendingArr.length > 0 ? currentPendingArr.join(', ') : null,
+                    is_approved: true
                 })
                 .eq('id', studentId);
 
             if (updateError) throw updateError;
+
+            // Notify student about approvals
+            try {
+                await notificationService.sendNotification(
+                    studentId,
+                    'Enrollment Approved',
+                    `Your request for ${classNames.length > 1 ? 'multiple classes' : `class "${classNames[0]}"`} has been approved!`,
+                    'general',
+                    { classes: classNames }
+                );
+            } catch (notifyErr) {
+                console.error('Failed to send approval notification:', notifyErr);
+            }
         }
     },
 

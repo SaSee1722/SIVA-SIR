@@ -124,6 +124,8 @@ export const authService = {
             systemNumber: profile.system_number,
             isApproved: profile.is_approved,
             deviceId: profile.device_id,
+            pushToken: profile.push_token,
+            push_token: profile.push_token,
             pendingClasses: profile.pending_classes,
             createdAt: profile.created_at,
           } as User;
@@ -240,6 +242,8 @@ export const authService = {
       systemNumber: profile.system_number,
       isApproved: profile.is_approved ?? true, // Default to true for legacy students
       deviceId: profile.device_id,
+      pushToken: profile.push_token,
+      push_token: profile.push_token,
       pendingClasses: profile.pending_classes,
       createdAt: profile.created_at
     })) as User[];
@@ -272,6 +276,10 @@ export const authService = {
     if ('deviceId' in mappedUpdates) {
       mappedUpdates.device_id = mappedUpdates.deviceId;
       delete mappedUpdates.deviceId;
+    }
+    if ('pushToken' in mappedUpdates) {
+      mappedUpdates.push_token = mappedUpdates.pushToken;
+      delete mappedUpdates.pushToken;
     }
 
     // Try to update with all fields first
@@ -322,6 +330,8 @@ export const authService = {
       systemNumber: profile.system_number,
       isApproved: profile.is_approved ?? true, // Default to true if column doesn't exist
       deviceId: profile.device_id,
+      pushToken: profile.push_token,
+      push_token: profile.push_token,
       createdAt: profile.created_at
     } as User;
   }

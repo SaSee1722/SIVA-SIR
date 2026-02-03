@@ -14,6 +14,9 @@ export default function NotificationsScreen() {
     const { notifications, loading, refresh, markAsRead, markAllAsRead } = useNotifications(user?.id);
     const [refreshing, setRefreshing] = useState(false);
 
+    const role = user?.role || 'student';
+    const roleColors = role === 'staff' ? colors.staff : colors.student;
+
     const handleRefresh = async () => {
         setRefreshing(true);
         await refresh();
@@ -38,7 +41,7 @@ export default function NotificationsScreen() {
             case 'absent':
                 return '#EF4444';
             default:
-                return colors.student.primary;
+                return roleColors.primary;
         }
     };
 
@@ -49,31 +52,31 @@ export default function NotificationsScreen() {
             case 'absent':
                 return '#FEE2E2';
             default:
-                return colors.student.surfaceLight;
+                return roleColors.surfaceLight;
         }
     };
 
     if (!user) return null;
 
     return (
-        <Screen role="student" scrollable={false}>
+        <Screen role={role} scrollable={false}>
             <View style={styles.container}>
                 {/* Header */}
                 <View style={styles.header}>
                     <Pressable onPress={() => router.back()} style={styles.backButton}>
-                        <MaterialIcons name="arrow-back" size={24} color={colors.student.text} />
+                        <MaterialIcons name="arrow-back" size={24} color={roleColors.text} />
                     </Pressable>
-                    <Text style={styles.title}>Notifications</Text>
+                    <Text style={[styles.title, { color: roleColors.text }]}>Notifications</Text>
                     {notifications.some(n => !n.isRead) && (
                         <Pressable onPress={markAllAsRead} style={styles.markAllButton}>
-                            <Text style={styles.markAllText}>Mark all as read</Text>
+                            <Text style={[styles.markAllText, { color: roleColors.primary }]}>Mark all as read</Text>
                         </Pressable>
                     )}
                 </View>
 
                 {loading && !refreshing ? (
                     <View style={styles.centerContainer}>
-                        <ActivityIndicator size="large" color={colors.student.primary} />
+                        <ActivityIndicator size="large" color={roleColors.primary} />
                     </View>
                 ) : (
                     <FlatList
@@ -81,7 +84,7 @@ export default function NotificationsScreen() {
                         keyExtractor={(item) => item.id}
                         contentContainerStyle={styles.listContent}
                         refreshControl={
-                            <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.student.primary} />
+                            <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={roleColors.primary} />
                         }
                         renderItem={({ item }) => (
                             <Pressable
@@ -96,10 +99,10 @@ export default function NotificationsScreen() {
                                 </View>
                                 <View style={styles.content}>
                                     <View style={styles.row}>
-                                        <Text style={[styles.itemTitle, !item.isRead && styles.unreadText]}>{item.title}</Text>
-                                        {!item.isRead && <View style={styles.unreadDot} />}
+                                        <Text style={[styles.itemTitle, { color: roleColors.text }, !item.isRead && styles.unreadText]}>{item.title}</Text>
+                                        {!item.isRead && <View style={[styles.unreadDot, { backgroundColor: roleColors.primary }]} />}
                                     </View>
-                                    <Text style={styles.message}>{item.message}</Text>
+                                    <Text style={[styles.message, { color: roleColors.textSecondary }]}>{item.message}</Text>
                                     <Text style={styles.time}>
                                         {format(new Date(item.createdAt), 'MMM d, h:mm a')}
                                     </Text>
@@ -110,7 +113,7 @@ export default function NotificationsScreen() {
                                                 markAsRead(item.id);
                                                 router.push('/qr-scanner');
                                             }}
-                                            style={styles.joinButton}
+                                            style={[styles.joinButton, { backgroundColor: roleColors.primary }]}
                                         >
                                             <MaterialIcons name="qr-code-scanner" size={18} color={colors.common.white} />
                                             <Text style={styles.joinButtonText}>Scan QR & Join</Text>
@@ -124,8 +127,8 @@ export default function NotificationsScreen() {
                                 <View style={styles.emptyIconContainer}>
                                     <MaterialIcons name="notifications-none" size={64} color={colors.common.gray300} />
                                 </View>
-                                <Text style={styles.emptyTitle}>No notifications yet</Text>
-                                <Text style={styles.emptySubtitle}>
+                                <Text style={[styles.emptyTitle, { color: roleColors.text }]}>No notifications yet</Text>
+                                <Text style={[styles.emptySubtitle, { color: roleColors.textSecondary }]}>
                                     We&apos;ll notify you when session activities occur.
                                 </Text>
                             </View>

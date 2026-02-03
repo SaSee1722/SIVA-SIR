@@ -12,6 +12,8 @@ export interface User {
   department?: string;
   isApproved?: boolean;
   deviceId?: string | null;
+  push_token?: string | null;
+  pushToken?: string | null;
   pendingClasses?: string;
   createdAt: string;
 }

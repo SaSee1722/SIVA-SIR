@@ -20,7 +20,9 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { pdfReportService } from '@/services/pdfReportService';
 import { attendanceService } from '@/services/attendanceService';
 import { classService } from '@/services/classService';
-import { authService } from '@/services/authService'; // Added authService
+import { authService } from '@/services/authService';
+import { notificationService } from '@/services/notificationService';
+import { useNotifications } from '@/hooks/useNotifications';
 import { Class } from '@/types';
 
 type ViewMode = 'files' | 'qr' | 'attendance' | 'classes' | 'students';
@@ -38,6 +40,7 @@ export default function StaffDashboardScreen() {
     getDateRangeRecords,
     refresh: refreshAttendance,
   } = useAttendance(user?.id);
+  const { unreadCount, refresh: refreshNotifications } = useNotifications(user?.id);
   const router = useRouter();
   const { showAlert } = useAlert();
 
@@ -73,7 +76,13 @@ export default function StaffDashboardScreen() {
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    await Promise.all([refreshFiles(), refreshAttendance(), loadClasses(), loadAllStudents()]);
+    await Promise.all([
+      refreshFiles(),
+      refreshAttendance(),
+      loadClasses(),
+      loadAllStudents(),
+      refreshNotifications()
+    ]);
     setRefreshing(false);
   };
 
@@ -141,6 +150,12 @@ export default function StaffDashboardScreen() {
       classService.getClassStudentCount(activeSession.classFilter).then(setClassTotalStudents);
     }
   }, [activeSession?.id]);
+
+  React.useEffect(() => {
+    if (user?.id) {
+      notificationService.registerForPushNotificationsAsync(user.id);
+    }
+  }, [user?.id]);
 
   // Reload classes when screen comes into focus (e.g., after creating a new class)
   useFocusEffect(
@@ -463,15 +478,26 @@ export default function StaffDashboardScreen() {
       const student = allStudents.find(s => s.id === studentId);
 
       if (student?.pendingClasses) {
-        // More granular approval: approve each pending class
+        // Bulk approval: approve all pending classes in one go
         const classes = student.pendingClasses.split(',').map(c => c.trim()).filter(c => c.length > 0);
-        for (const cls of classes) {
-          await classService.approveEnrollment(studentId, cls);
-        }
+        await classService.approveMultipleEnrollments(studentId, classes);
         showToast('Class requests approved', 'success');
       } else {
         // Legacy/Global approval
         await authService.updateProfile(studentId, { isApproved: true });
+
+        // Notify student
+        try {
+          await notificationService.sendNotification(
+            studentId,
+            'Account Approved',
+            'Your account has been fully approved. You can now mark attendance.',
+            'general'
+          );
+        } catch (notifErr) {
+          console.error('Failed to notify student of approval:', notifErr);
+        }
+
         showToast('Student approved successfully', 'success');
       }
 
@@ -608,6 +634,19 @@ export default function StaffDashboardScreen() {
         onPress: async () => {
           try {
             await authService.updateProfile(studentId, { deviceId: null });
+
+            // Notify student
+            try {
+              await notificationService.sendNotification(
+                studentId,
+                'Device Reset',
+                'Your device binding has been reset by staff. You can now bind a new device.',
+                'general'
+              );
+            } catch (notifErr) {
+              console.error('Failed to notify student of device reset:', notifErr);
+            }
+
             showToast('Device binding reset successfully', 'success');
             loadAllStudents();
           } catch (error: any) {
@@ -1606,7 +1645,23 @@ export default function StaffDashboardScreen() {
                 </View>
               )}
             </Pressable>
-            <Pressable onPress={handleLogout} style={styles.logoutButton} hitSlop={8}>
+
+            <Pressable
+              onPress={() => router.push('/notifications')}
+              style={styles.headerIconBtn}
+              hitSlop={8}
+            >
+              <MaterialIcons name="notifications" size={24} color={colors.staff.text} />
+              {unreadCount > 0 && (
+                <View style={styles.headerBadge}>
+                  <Text style={styles.headerBadgeText}>
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </Text>
+                </View>
+              )}
+            </Pressable>
+
+            <Pressable onPress={handleLogout} style={styles.headerIconBtn} hitSlop={8}>
               <MaterialIcons name="logout" size={24} color={colors.staff.text} />
             </Pressable>
           </View>

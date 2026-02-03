@@ -313,6 +313,19 @@ export const attendanceService = {
 
     if (error) throw error;
 
+    // Notify student
+    try {
+      await notificationService.sendNotification(
+        studentId,
+        'Attendance Marked',
+        `Your attendance for "${sessionName}" has been marked as ${status === 'on_duty' ? 'On Duty' : 'Present'} by staff.`,
+        'general',
+        { sessionId, status }
+      );
+    } catch (notifErr) {
+      console.error('Failed to notify student of manual attendance:', notifErr);
+    }
+
     return {
       id: data.id,
       sessionId: data.session_id,
