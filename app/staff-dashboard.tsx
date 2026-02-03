@@ -145,6 +145,19 @@ export default function StaffDashboardScreen() {
     loadAllStudents();
   }, [user?.id]);
 
+  // Subscribe to real-time profile changes for lively updates
+  React.useEffect(() => {
+    const profileSubscription = classService.subscribeToProfiles(() => {
+      console.log('[StaffDashboard] Profile change detected, refreshing data...');
+      loadAllStudents();
+      loadClasses();
+    });
+
+    return () => {
+      profileSubscription.unsubscribe();
+    };
+  }, []);
+
   React.useEffect(() => {
     if (activeSession?.classFilter) {
       classService.getClassStudentCount(activeSession.classFilter).then(setClassTotalStudents);
@@ -504,8 +517,11 @@ export default function StaffDashboardScreen() {
       console.log('Student approved successfully');
 
       // Reload from database to ensure consistency
-      await loadAllStudents();
-      console.log('Students reloaded after approval');
+      await Promise.all([
+        loadAllStudents(),
+        loadClasses()
+      ]);
+      console.log('Students and classes reloaded after approval');
     } catch (error: any) {
       console.error('Error approving student:', error);
       showAlert('Error', error.message || 'Failed to approve student');

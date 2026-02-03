@@ -126,15 +126,19 @@ export const authService = {
              meta = user?.user_metadata || {};
           }
 
+          const isApprovedInDB = profile.is_approved === true;
+          
           const userObj = {
             ...profile,
             rollNumber: profile.roll_number || meta.roll_number || meta.rollNumber,
             systemNumber: profile.system_number || meta.system_number || meta.systemNumber,
+            // Only fallback to metadata approval if DB says false/null
             isApproved: profile.is_approved !== null ? profile.is_approved : (meta.is_approved ?? meta.isApproved),
             deviceId: profile.device_id || meta.device_id || meta.deviceId,
             pushToken: profile.push_token || meta.push_token || meta.pushToken,
             push_token: profile.push_token || meta.push_token || meta.pushToken,
-            pendingClasses: profile.pending_classes || meta.pending_classes || meta.pendingClasses,
+            // IMPORTANT: If user is approved in DB, do NOT fallback to metadata pending classes
+            pendingClasses: isApprovedInDB ? profile.pending_classes : (profile.pending_classes || meta.pending_classes || meta.pendingClasses),
             createdAt: profile.created_at,
           } as User;
 

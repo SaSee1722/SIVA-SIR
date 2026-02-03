@@ -193,20 +193,23 @@ export const classService = {
 
         const { data, error } = await supabase
             .from('profiles')
-            .select('class')
+            .select('name, class')
             .eq('role', 'student');
 
         if (error) throw error;
 
         // Precise matching in JS (case-insensitive & trimmed)
         const targetClass = className.trim().toLowerCase();
-        const count = (data || []).filter(student => {
+        const studentsInClass = (data || []).filter(student => {
             if (!student.class) return false;
             const studentClasses = student.class.split(',').map((c: string) => c.trim().toLowerCase());
             return studentClasses.includes(targetClass);
-        }).length;
+        });
 
-        return count;
+        console.log(`[ClassService] getClassStudentCount for "${className}": Found ${studentsInClass.length} students.`, 
+            studentsInClass.map(s => s.name));
+            
+        return studentsInClass.length;
     },
 
     // Get students in a class
@@ -532,5 +535,18 @@ export const classService = {
 
         if (authError) throw authError;
         if (!authData.user) throw new Error('Registration failed');
+    },
+
+    subscribeToProfiles(callback: (payload: any) => void) {
+        const supabase = getSharedSupabaseClient();
+        const channelId = `profiles_all_${Math.random().toString(36).slice(2, 9)}`;
+        return supabase
+            .channel(channelId)
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'profiles' },
+                (payload) => callback(payload)
+            )
+            .subscribe();
     }
 };
