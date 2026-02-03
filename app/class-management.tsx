@@ -120,7 +120,21 @@ export default function ClassManagementScreen() {
         loadClasses();
     }, [loadClasses]);
 
-    const handleSelectClass = async (cls: Class) => {
+    // Update students list lively if open
+    useEffect(() => {
+        const subscription = classService.subscribeToProfiles(() => {
+            console.log('[ClassManagement] Profile change detected, refreshing...');
+            loadClasses();
+            if (selectedClass) {
+                handleSelectClass(selectedClass);
+            }
+        });
+        return () => {
+            subscription.unsubscribe();
+        };
+    }, [selectedClass, loadClasses, handleSelectClass]);
+
+    const handleSelectClass = useCallback(async (cls: Class) => {
         setSelectedClass(cls);
         setLoadingStudents(true);
         setStudents([]); // Clear previous to avoid UI confusion
@@ -139,7 +153,7 @@ export default function ClassManagementScreen() {
         } finally {
             setLoadingStudents(false);
         }
-    };
+    }, [showAlert]);
 
 
 
@@ -339,30 +353,59 @@ export default function ClassManagementScreen() {
                                         data={students}
                                         keyExtractor={(item) => item.id}
                                         contentContainerStyle={{ paddingBottom: spacing.xl }}
-                                        renderItem={({ item }) => (
-                                            <View style={[styles.studentItem, { borderColor: colors.staff.border }]}>
-                                                <View style={[styles.studentAvatar, { backgroundColor: colors.staff.surfaceLight }]}>
-                                                    <Text style={[styles.avatarText, { color: colors.staff.primary }]}>
-                                                        {item.name.charAt(0).toUpperCase()}
-                                                    </Text>
+                                        renderItem={({ item }) => {
+                                            // Handle multiple classes display
+                                            const classList = (item.class || '').split(',').map((c: string) => c.trim()).filter((c: string) => c.length > 0);
+                                            
+                                            return (
+                                                <View style={[styles.studentItem, { borderColor: colors.staff.border, flexDirection: 'column', alignItems: 'stretch' }]}>
+                                                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                                                        <View style={[styles.studentAvatar, { backgroundColor: colors.staff.surfaceLight }]}>
+                                                            <Text style={[styles.avatarText, { color: colors.staff.primary }]}>
+                                                                {item.name.charAt(0).toUpperCase()}
+                                                            </Text>
+                                                        </View>
+                                                        <View style={styles.studentInfo}>
+                                                            <Text style={[styles.studentName, { color: colors.staff.text }]}>
+                                                                {item.name}
+                                                            </Text>
+                                                            <Text style={[styles.studentRoll, { color: colors.staff.textSecondary }]}>
+                                                                Roll: {item.rollNumber || 'N/A'} • {item.email}
+                                                            </Text>
+                                                        </View>
+                                                        <Pressable
+                                                            onPress={() => handleRemoveStudent(item.id, item.name)}
+                                                            style={styles.removeStudentBtn}
+                                                            hitSlop={8}
+                                                        >
+                                                            <MaterialIcons name="person-remove" size={20} color="#EF4444" />
+                                                        </Pressable>
+                                                    </View>
+                                                    
+                                                    {/* Separate cards/badges for classes */}
+                                                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginTop: spacing.sm, gap: spacing.xs }}>
+                                                        {classList.map((cls: string, idx: number) => (
+                                                            <View key={idx} style={{ 
+                                                                backgroundColor: cls.toLowerCase() === selectedClass?.className.toLowerCase() ? colors.staff.primary + '15' : colors.common.gray100,
+                                                                paddingHorizontal: spacing.sm,
+                                                                paddingVertical: 4,
+                                                                borderRadius: borderRadius.sm,
+                                                                borderWidth: 1,
+                                                                borderColor: cls.toLowerCase() === selectedClass?.className.toLowerCase() ? colors.staff.primary + '30' : colors.common.gray200
+                                                            }}>
+                                                                <Text style={{ 
+                                                                    fontSize: 12, 
+                                                                    fontWeight: '600',
+                                                                    color: cls.toLowerCase() === selectedClass?.className.toLowerCase() ? colors.staff.primary : colors.staff.textSecondary
+                                                                }}>
+                                                                    {cls}
+                                                                </Text>
+                                                            </View>
+                                                        ))}
+                                                    </View>
                                                 </View>
-                                                <View style={styles.studentInfo}>
-                                                    <Text style={[styles.studentName, { color: colors.staff.text }]}>
-                                                        {item.name}
-                                                    </Text>
-                                                    <Text style={[styles.studentRoll, { color: colors.staff.textSecondary }]}>
-                                                        Roll: {item.rollNumber || 'N/A'} • {item.email}
-                                                    </Text>
-                                                </View>
-                                                <Pressable
-                                                    onPress={() => handleRemoveStudent(item.id, item.name)}
-                                                    style={styles.removeStudentBtn}
-                                                    hitSlop={8}
-                                                >
-                                                    <MaterialIcons name="person-remove" size={20} color="#EF4444" />
-                                                </Pressable>
-                                            </View>
-                                        )}
+                                            );
+                                        }}
                                         ItemSeparatorComponent={() => <View style={{ height: spacing.xs }} />}
                                     />
                                 )}
