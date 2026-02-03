@@ -625,37 +625,6 @@ export default function StaffDashboardScreen() {
     }
   };
 
-  const handleResetDeviceId = async (studentId: string) => {
-    showAlert('Reset Device', 'Are you sure you want to reset this student\'s device binding? They will be able to bind a new device on their next attendance mark.', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Reset',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await authService.updateProfile(studentId, { deviceId: null });
-
-            // Notify student
-            try {
-              await notificationService.sendNotification(
-                studentId,
-                'Device Reset',
-                'Your device binding has been reset by staff. You can now bind a new device.',
-                'general'
-              );
-            } catch (notifErr) {
-              console.error('Failed to notify student of device reset:', notifErr);
-            }
-
-            showToast('Device binding reset successfully', 'success');
-            loadAllStudents();
-          } catch (error: any) {
-            showAlert('Error', error.message || 'Failed to reset device');
-          }
-        }
-      }
-    ]);
-  };
 
   const showToast = (message: string, type: 'success' | 'error' = 'success') => {
     // Helper to match style of student-dashboard if we have a toast hook, 
@@ -1477,12 +1446,6 @@ export default function StaffDashboardScreen() {
 
               <View style={styles.studentCardInfo}>
                 <View style={styles.infoRow}>
-                  <MaterialIcons name="phonelink-lock" size={16} color={colors.staff.textSecondary} />
-                  <Text style={styles.infoRowText}>
-                    Device: {item.deviceId ? 'Bound' : 'Not Bound'}
-                  </Text>
-                </View>
-                <View style={styles.infoRow}>
                   <MaterialIcons name="email" size={16} color={colors.staff.textSecondary} />
                   <Text style={styles.infoRowText}>{item.email}</Text>
                 </View>
@@ -1496,16 +1459,6 @@ export default function StaffDashboardScreen() {
                     role="staff"
                     style={{ flex: 1, marginRight: spacing.sm }}
                     icon={<MaterialIcons name="check" size={18} color="white" />}
-                  />
-                )}
-                {item.deviceId && (
-                  <Button
-                    title="Reset Device"
-                    onPress={() => handleResetDeviceId(item.id)}
-                    role="staff"
-                    variant="secondary"
-                    style={{ flex: 1 }}
-                    icon={<MaterialIcons name="refresh" size={18} color={colors.staff.primary} />}
                   />
                 )}
               </View>

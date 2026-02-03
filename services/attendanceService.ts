@@ -196,10 +196,10 @@ export const attendanceService = {
       throw new Error('Attendance already marked for this session');
     }
 
-    // Security Check: Verify Approval and Device Binding
+    // Security Check: Verify Approval
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .select('is_approved, device_id')
+      .select('is_approved')
       .eq('id', studentId)
       .single();
 
@@ -207,20 +207,6 @@ export const attendanceService = {
 
     if (!profile.is_approved) {
       throw new Error('Your account is pending approval by staff. You cannot mark attendance yet.');
-    }
-
-    if (deviceId) {
-      if (!profile.device_id) {
-        // First time marking attendance, bind the device
-        const { error: bindError } = await supabase
-          .from('profiles')
-          .update({ device_id: deviceId })
-          .eq('id', studentId);
-        if (bindError) throw bindError;
-      } else if (profile.device_id !== deviceId) {
-        // Device mismatch detected
-        throw new Error('Unauthorized Device: You can only mark attendance from your registered device. Please contact staff if you changed your phone.');
-      }
     }
     const newRecord = {
       session_id: sessionId,
