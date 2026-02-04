@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { colors, typography, spacing, borderRadius, shadows } from '@/constants/theme';
 import { useAlert } from '@/template';
+import { useToast } from '@/components/ui/Toast';
 import { classService } from '@/services/classService';
 import { Class } from '@/types';
 
@@ -81,6 +82,7 @@ export default function ClassManagementScreen() {
     const { user } = useAuth();
     const router = useRouter();
     const { showAlert } = useAlert();
+    const { showToast } = useToast();
 
     const [classes, setClasses] = useState<Class[]>([]);
     const [loading, setLoading] = useState(true);
@@ -102,6 +104,27 @@ export default function ClassManagementScreen() {
 
     const yearOptions = ['I YEAR', 'II YEAR', 'III YEAR', 'IV YEAR'];
 
+    const handleSelectClass = useCallback(async (cls: Class) => {
+        setSelectedClass(cls);
+        setLoadingStudents(true);
+        setStudents([]); // Clear previous to avoid UI confusion
+        try {
+            console.log('[ClassManagement] Loading students for:', cls.className);
+            const classStudents = await classService.getClassStudents(cls.className);
+            setStudents(classStudents);
+            console.log('[ClassManagement] Students loaded:', classStudents.length);
+        } catch (error: any) {
+            console.error('[ClassManagement] Error loading students:', error);
+            const message = error.message?.includes('recursion')
+                ? 'Database permission error. Please run the SQL migration.'
+                : 'Failed to load student list';
+            showToast(message, 'error');
+            setSelectedClass(null); // Close modal on fatal error to avoid freeze
+        } finally {
+            setLoadingStudents(false);
+        }
+    }, [showToast]);
+
     const loadClasses = useCallback(async () => {
         if (!user?.id) return;
         try {
@@ -110,11 +133,11 @@ export default function ClassManagementScreen() {
             setClasses(staffClasses);
         } catch (error) {
             console.error('Error loading classes:', error);
-            showAlert('Error', 'Failed to load classes');
+            showToast('Failed to load classes', 'error');
         } finally {
             setLoading(false);
         }
-    }, [showAlert, user?.id]);
+    }, [showToast, user?.id]);
 
     useEffect(() => {
         loadClasses();
@@ -134,30 +157,6 @@ export default function ClassManagementScreen() {
         };
     }, [selectedClass, loadClasses, handleSelectClass]);
 
-    const handleSelectClass = useCallback(async (cls: Class) => {
-        setSelectedClass(cls);
-        setLoadingStudents(true);
-        setStudents([]); // Clear previous to avoid UI confusion
-        try {
-            console.log('[ClassManagement] Loading students for:', cls.className);
-            const classStudents = await classService.getClassStudents(cls.className);
-            setStudents(classStudents);
-            console.log('[ClassManagement] Students loaded:', classStudents.length);
-        } catch (error: any) {
-            console.error('[ClassManagement] Error loading students:', error);
-            const message = error.message?.includes('recursion')
-                ? 'Database permission error. Please run the SQL migration.'
-                : 'Failed to load student list';
-            showAlert('Error', message);
-            setSelectedClass(null); // Close modal on fatal error to avoid freeze
-        } finally {
-            setLoadingStudents(false);
-        }
-    }, [showAlert]);
-
-
-
-
     const handleRemoveStudent = async (studentId: string, studentName: string) => {
         if (!selectedClass) return;
 
@@ -175,9 +174,10 @@ export default function ClassManagementScreen() {
                             // Refresh student list
                             const classStudents = await classService.getClassStudents(selectedClass.className);
                             setStudents(classStudents);
+                            showToast(`${studentName} removed from class`, 'success');
                         } catch (error) {
                             console.error('Error removing student:', error);
-                            showAlert('Error', 'Failed to remove student');
+                            showToast('Failed to remove student', 'error');
                         }
                     }
                 }
@@ -187,17 +187,17 @@ export default function ClassManagementScreen() {
 
     const handleCreateClass = async () => {
         if (!className.trim()) {
-            showAlert('Error', 'Please enter a class name (e.g., CSE-A)');
+            showToast('Please enter a class name (e.g., CSE-A)', 'error');
             return;
         }
 
         if (!year) {
-            showAlert('Error', 'Please select a academic year');
+            showToast('Please select a academic year', 'error');
             return;
         }
 
         if (!department.trim()) {
-            showAlert('Error', 'Please enter a department (e.g., CSE)');
+            showToast('Please enter a department (e.g., CSE)', 'error');
             return;
         }
 
@@ -216,9 +216,9 @@ export default function ClassManagementScreen() {
             setYear('');
 
             await loadClasses();
-            showAlert('Success', 'Class created successfully!');
+            showToast('Class created successfully!', 'success');
         } catch (error: any) {
-            showAlert('Error', error.message || 'Failed to create class');
+            showToast(error.message || 'Failed to create class', 'error');
         } finally {
             setCreating(false);
         }
@@ -237,9 +237,9 @@ export default function ClassManagementScreen() {
                         try {
                             await classService.deleteClass(classId, name);
                             await loadClasses();
-                            showAlert('Success', 'Class deleted successfully');
+                            showToast('Class deleted successfully', 'success');
                         } catch (error: any) {
-                            showAlert('Error', error.message || 'Failed to delete class');
+                            showToast(error.message || 'Failed to delete class', 'error');
                         }
                     },
                 },

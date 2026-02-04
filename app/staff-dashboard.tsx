@@ -16,6 +16,7 @@ import { colors, typography, borderRadius, spacing, shadows } from '@/constants/
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import { useAlert } from '@/template';
+import { useToast } from '@/components/ui/Toast';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { pdfReportService } from '@/services/pdfReportService';
 import { attendanceService } from '@/services/attendanceService';
@@ -43,6 +44,7 @@ export default function StaffDashboardScreen() {
   const { unreadCount, refresh: refreshNotifications } = useNotifications(user?.id);
   const router = useRouter();
   const { showAlert } = useAlert();
+  const { showToast } = useToast();
 
   const [viewMode, setViewMode] = useState<ViewMode>('files');
   const [attendanceViewMode, setAttendanceViewMode] = useState<AttendanceViewMode>('session');
@@ -196,9 +198,9 @@ export default function StaffDashboardScreen() {
       setSessionName('');
       const count = await classService.getClassStudentCount(selectedClass);
       setClassTotalStudents(count);
-      showAlert('Success', 'QR Code generated successfully');
+      showToast('QR Code generated successfully', 'success');
     } catch (error: any) {
-      showAlert('Error', error.message || 'Failed to create session');
+      showToast(error.message || 'Failed to create session', 'error');
     }
   };
 
@@ -217,7 +219,7 @@ export default function StaffDashboardScreen() {
             await deactivateSession(activeSession.id);
             setShowEndSessionSummary(true);
           } catch (error: any) {
-            showAlert('Error', error.message || 'Failed to end session');
+            showToast(error.message || 'Failed to end session', 'error');
           }
         },
       },
@@ -350,7 +352,7 @@ export default function StaffDashboardScreen() {
 
     } catch (error: any) {
       console.error('Export error:', error);
-      showAlert('Error', error.message || 'Failed to generate report');
+      showToast(error.message || 'Failed to generate report', 'error');
     }
   };
 
@@ -388,7 +390,7 @@ export default function StaffDashboardScreen() {
       });
       setShowPreviewModal(true);
     } catch (error: any) {
-      showAlert('Error', 'Failed to load session preview');
+      showToast('Failed to load session preview', 'error');
     }
   };
 
@@ -437,7 +439,7 @@ export default function StaffDashboardScreen() {
 
     } catch (error: any) {
       console.error('Export error:', error);
-      showAlert('Error', error.message || 'Failed to generate report');
+      showToast(error.message || 'Failed to generate report', 'error');
     }
   };
 
@@ -600,7 +602,7 @@ export default function StaffDashboardScreen() {
     } catch (error: any) {
       console.error('Error loading students:', error);
       setLoadingManualStudents(false);
-      showAlert('Error', error.message || 'Failed to load students');
+      showToast(error.message || 'Failed to load students', 'error');
     }
   };
 
@@ -624,12 +626,12 @@ export default function StaffDashboardScreen() {
         );
       }
 
-      showAlert('Success', `Marked ${studentsToMark.length} student(s) as ${manualMarkStatus === 'on_duty' ? 'On Duty' : 'Present'}`);
+      showToast(`Marked ${studentsToMark.length} student(s) as ${manualMarkStatus === 'on_duty' ? 'On Duty' : 'Present'}`, 'success');
       setShowManualMarkModal(false);
       setSelectedManualStudents(new Set());
       await refreshAttendance();
     } catch (error: any) {
-      showAlert('Error', error.message || 'Failed to mark attendance');
+      showToast(error.message || 'Failed to mark attendance', 'error');
     }
   };
 
@@ -651,12 +653,6 @@ export default function StaffDashboardScreen() {
     }
   };
 
-
-  const showToast = (message: string, type: 'success' | 'error' = 'success') => {
-    // Helper to match style of student-dashboard if we have a toast hook, 
-    // but here we can just use showAlert or similar
-    showAlert(type === 'success' ? 'Success' : 'Error', message);
-  };
 
   // Auto-load date range records when dates change
   React.useEffect(() => {

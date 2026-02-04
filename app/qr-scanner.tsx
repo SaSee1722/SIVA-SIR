@@ -8,6 +8,7 @@ import { useAttendance } from '@/hooks/useAttendance';
 import { StudentProfile } from '@/types';
 import { colors, typography, borderRadius, spacing } from '@/constants/theme';
 import { useAlert } from '@/template';
+import { useToast } from '@/components/ui/Toast';
 import * as Application from 'expo-application';
 
 export default function QRScannerScreen() {
@@ -17,6 +18,7 @@ export default function QRScannerScreen() {
   const { sessions, markAttendance } = useAttendance();
   const router = useRouter();
   const { showAlert } = useAlert();
+  const { showToast } = useToast();
   const studentProfile = user as StudentProfile;
 
   useEffect(() => {
@@ -35,10 +37,8 @@ export default function QRScannerScreen() {
     );
 
     if (!activeSession) {
-      showAlert('Invalid QR Code', 'This QR code is not valid or has expired', [
-        { text: 'Scan Again', onPress: () => setScanned(false) },
-        { text: 'Close', onPress: () => router.back() },
-      ]);
+      showToast('Invalid or expired QR Code', 'error');
+      setScanned(false);
       return;
     }
 
@@ -56,14 +56,11 @@ export default function QRScannerScreen() {
         Platform.OS === 'android' ? await Application.getAndroidId() : await Application.getIosIdForVendorAsync() || undefined
       );
 
-      showAlert('Success', 'Attendance marked successfully!', [
-        { text: 'OK', onPress: () => router.back() },
-      ]);
+      showToast('Attendance marked successfully!', 'success');
+      setTimeout(() => router.back(), 2000);
     } catch (error: any) {
-      showAlert('Error', error.message || 'Failed to mark attendance', [
-        { text: 'Scan Again', onPress: () => setScanned(false) },
-        { text: 'Close', onPress: () => router.back() },
-      ]);
+      showToast(error.message || 'Failed to mark attendance', 'error');
+      setScanned(false);
     }
   };
 

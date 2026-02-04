@@ -130,7 +130,7 @@ export default function StudentDashboardScreen() {
 
   const handleSaveProfile = async () => {
     if (!editYear || editClasses.length === 0 || !editSystemNumber || !editDepartment) {
-      showAlert('Error', 'Please select year, department, at least one class, and enter system number');
+      showToast('Please select year, department, at least one class, and enter system number', 'error');
       return;
     }
 
