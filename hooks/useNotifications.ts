@@ -3,17 +3,6 @@ import { notificationService } from '@/services/notificationService';
 import { Notification } from '@/types';
 import * as Notifications from 'expo-notifications';
 
-// Configure how notifications look when app is in foreground
-Notifications.setNotificationHandler({
-    handleNotification: async () => ({
-        shouldShowAlert: true,
-        shouldPlaySound: true,
-        shouldSetBadge: true,
-        shouldShowBanner: true,
-        shouldShowList: true,
-    }),
-});
-
 export function useNotifications(userId: string | undefined) {
     const [notifications, setNotifications] = useState<Notification[]>([]);
     const [unreadCount, setUnreadCount] = useState(0);

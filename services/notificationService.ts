@@ -22,21 +22,14 @@ Notifications.setNotificationHandler({
     handleNotification: async (notification) => {
         // Check if we should silence this notification
         const data = notification.request.content.data;
-        if (activeSessionId && data?.sessionId === activeSessionId) {
-            return {
-                shouldShowAlert: false,
-                shouldPlaySound: false,
-                shouldSetBadge: false,
-                shouldShowBanner: false,
-                shouldShowList: false,
-            };
-        }
-
+        
+        // We always silence native foreground alerts in favor of our custom premium Toasts
+        // as requested by the user to avoid "duplicates" (system bubble + app toast/ui)
         return {
-            shouldShowAlert: true,
+            shouldShowAlert: false,
             shouldPlaySound: true,
             shouldSetBadge: true,
-            shouldShowBanner: true,
+            shouldShowBanner: false,
             shouldShowList: true,
         };
     },

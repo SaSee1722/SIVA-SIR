@@ -8,6 +8,7 @@ import { ToastProvider } from '@/components/ui/Toast';
 import * as Notifications from 'expo-notifications';
 
 import { ProfessionalSplashScreen } from '@/components/ui/ProfessionalSplashScreen';
+import { useToast } from '@/components/ui/Toast';
 
 // Keep the splash screen visible while we fetch resources
 SplashScreen.preventAutoHideAsync().catch(() => {
@@ -16,6 +17,22 @@ SplashScreen.preventAutoHideAsync().catch(() => {
 
 // Global flag to ensure splash only shows once per session
 let hasShownSplashGlobal = false;
+
+function ForegroundNotificationHandler() {
+  const { showToast } = useToast();
+
+  useEffect(() => {
+    // This listener fires when a notification is received while the app is in the foreground
+    const subscription = Notifications.addNotificationReceivedListener(notification => {
+      const { title, body } = notification.request.content;
+      showToast(body || '', 'info', title || 'Notification');
+    });
+
+    return () => subscription.remove();
+  }, [showToast]);
+
+  return null;
+}
 
 export default function RootLayout() {
   const [appIsReady, setAppIsReady] = useState(false);
@@ -74,6 +91,7 @@ export default function RootLayout() {
       <ToastProvider>
         <SafeAreaProvider>
           <AuthProvider>
+            <ForegroundNotificationHandler />
             {showAnimatedSplash ? (
               <ProfessionalSplashScreen onAnimationComplete={onAnimationComplete} />
             ) : (

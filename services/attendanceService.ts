@@ -63,7 +63,8 @@ export const attendanceService = {
           .ilike('class', `%${classFilter}%`);
 
         if (students && students.length > 0) {
-          const studentIds = students.map(s => s.id);
+          // Use Map or Set to deduplicate student IDs to prevent double notifications
+          const studentIds = [...new Set(students.map(s => s.id))];
 
           // Create in-app internal records
           await notificationService.sendBulkNotifications(
@@ -154,7 +155,7 @@ export const attendanceService = {
       try {
         const absentees = await this.getAbsenteesBySession(sessionId, sessionData.class_filter);
         if (absentees && absentees.length > 0) {
-          const absenteeIds = absentees.map(a => a.studentId);
+          const absenteeIds = [...new Set(absentees.map(a => a.studentId))];
 
           // Create in-app internal records (The Database Trigger will handle the Push Notification)
           await notificationService.sendBulkNotifications(

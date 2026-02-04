@@ -197,19 +197,6 @@ export default function StudentDashboardScreen() {
         base64Data: finalBase64,
       });
 
-      // Send notification to staff
-      try {
-        await notificationService.sendNotification(
-          selectedStaff.id,
-          'New File Received',
-          `${user?.name} shared a file: ${file.fileName}`,
-          'general',
-          { fileId: uploadedFile.id, studentId: user?.id }
-        );
-      } catch (notifErr) {
-        console.error('Failed to send notification to staff:', notifErr);
-      }
-
       showToast('File uploaded successfully!', 'success');
     } catch (error: any) {
       showToast(`Upload failed: ${error.message}`, 'error');
