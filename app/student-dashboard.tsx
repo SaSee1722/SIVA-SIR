@@ -206,19 +206,6 @@ export default function StudentDashboardScreen() {
           'general',
           { fileId: uploadedFile.id, studentId: user?.id }
         );
-
-        // Fetch staff profile to get push token
-        const staffProfile = await authService.getUserProfile(selectedStaff.id, undefined, true);
-        const targetToken = staffProfile?.push_token || (staffProfile as any)?.push_token;
-
-        if (targetToken) {
-          await notificationService.sendPushNotification(
-            [targetToken],
-            'New File Received',
-            `${user?.name} shared a file: ${file.fileName}`,
-            { screen: 'staff-dashboard', fileId: uploadedFile.id }
-          );
-        }
       } catch (notifErr) {
         console.error('Failed to send notification to staff:', notifErr);
       }

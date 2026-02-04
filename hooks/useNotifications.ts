@@ -67,19 +67,6 @@ export function useNotifications(userId: string | undefined) {
 
             // Subscribe to real-time notifications
             const subscription = notificationService.subscribeToNotifications(userId, (payload: any) => {
-                // If a new notification is inserted, show a local system alert
-                if (payload?.eventType === 'INSERT' && payload?.new) {
-                    const newNotify = payload.new;
-                    Notifications.scheduleNotificationAsync({
-                        content: {
-                            title: newNotify.title,
-                            body: newNotify.message,
-                            data: newNotify.metadata,
-                        },
-                        trigger: null, // show immediately
-                    });
-                }
-
                 // Refresh the list and count
                 fetchNotifications();
             });

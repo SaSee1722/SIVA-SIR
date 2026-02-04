@@ -71,6 +71,7 @@ export default function StaffDashboardScreen() {
   const [selectedManualStudents, setSelectedManualStudents] = useState<Set<string>>(new Set());
   const [manualMarkStatus, setManualMarkStatus] = useState<'present' | 'on_duty'>('present');
   const [loadingManualStudents, setLoadingManualStudents] = useState(false);
+  const [loadingApprovals, setLoadingApprovals] = useState<Set<string>>(new Set());
 
   const activeSession = sessions.find((s) => s.isActive);
 
@@ -486,7 +487,10 @@ export default function StaffDashboardScreen() {
   }, [selectedSessionId, attendanceViewMode]);
 
   const handleApproveStudent = async (studentId: string) => {
+    if (loadingApprovals.has(studentId)) return;
+
     try {
+      setLoadingApprovals(prev => new Set(prev).add(studentId));
       console.log('Approving student:', studentId);
       const student = allStudents.find(s => s.id === studentId);
 
@@ -525,6 +529,12 @@ export default function StaffDashboardScreen() {
     } catch (error: any) {
       console.error('Error approving student:', error);
       showAlert('Error', error.message || 'Failed to approve student');
+    } finally {
+      setLoadingApprovals(prev => {
+        const next = new Set(prev);
+        next.delete(studentId);
+        return next;
+      });
     }
   };
 
@@ -1473,6 +1483,7 @@ export default function StaffDashboardScreen() {
                     title="Approve"
                     onPress={() => handleApproveStudent(item.id)}
                     role="staff"
+                    loading={loadingApprovals.has(item.id)}
                     style={{ flex: 1, marginRight: spacing.sm }}
                     icon={<MaterialIcons name="check" size={18} color="white" />}
                   />
