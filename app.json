@@ -8,6 +8,10 @@
     "scheme": "eduportal",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
+    "notification": {
+      "icon": "./assets/images/notification-icon.png",
+      "color": "#7C3AED"
+    },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.ssabee1722.eduportalapp",
