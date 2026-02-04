@@ -398,7 +398,7 @@ export const pdfReportService = {
                             </div>
                         </div>
                         <div class="record-count">
-                            ${presentCount} Present${onDutyCount > 0 ? ` | ${onDutyCount} On Duty` : ''} | ${group.absent.length} Absent
+                            ${presentCount} Present${onDutyCount > 0 ? ` | ${onDutyCount} Present (On Duty)` : ''} | ${group.absent.length} Absent
                         </div>
                     </div>
                     <table class="student-table">
@@ -420,9 +420,9 @@ export const pdfReportService = {
                                     <td>${group.classFilter}</td>
                                     <td>
                                       ${p.status === 'on_duty'
-          ? '<span style="color: #92400E; font-weight: 600;">⚡ On Duty</span>'
-          : '<span class="present-text">✓ Present</span>'
-        }
+                                        ? '<span class="present-text">✓ Present (On Duty)</span>'
+                                        : '<span class="present-text">✓ Present</span>'
+                                      }
                                     </td>
                                 </tr>
                             `).join('')}
@@ -463,8 +463,8 @@ export const pdfReportService = {
                             font-weight: 600;
                             text-transform: uppercase;
                           ">
-                            ${record.status === 'on_duty' ? 'On Duty' : 'Present'}
-                          </span>
+                             ${record.status === 'on_duty' ? 'Present (On Duty)' : 'Present'}
+                           </span>
                         ` : ''}
                       </div>
                       <div class="record-details">

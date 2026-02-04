@@ -1379,7 +1379,7 @@ export default function StaffDashboardScreen() {
                       </View>
                       <Text style={[styles.previewItemStatus, { color: item.type === 'present' ? colors.staff.success : '#EF4444' }]}>
                         {item.type === 'present'
-                          ? (item.status === 'on_duty' ? 'ON DUTY' : 'PRESENT')
+                          ? (item.status === 'on_duty' ? 'PRESENT (ON DUTY)' : 'PRESENT')
                           : 'ABSENT'
                         }
                       </Text>
