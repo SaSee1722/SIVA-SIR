@@ -503,7 +503,7 @@ export default function StudentDashboardScreen() {
                       <View style={styles.emptyClassState}>
                         <MaterialIcons name="class" size={40} color={colors.student.border} />
                         <Text style={[styles.emptyClassText, { color: colors.student.textSecondary }]}>
-                          You haven't joined any classes yet.
+                          You haven&apos;t joined any classes yet.
                         </Text>
                         <Pressable onPress={() => setShowEditModal(true)}>
                           <Text style={{ color: colors.student.primary, fontWeight: '600', marginTop: 8 }}>

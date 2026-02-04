@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { View, StyleSheet, Image, Dimensions } from 'react-native';
+import { View, StyleSheet, Image } from 'react-native';
 import Animated, {
     useSharedValue,
     useAnimatedStyle,
@@ -13,11 +13,11 @@ import { spacing } from '@/constants/theme';
 
 
 
+import * as ExpoSplashScreen from 'expo-splash-screen';
+
 interface SplashScreenProps {
     onAnimationComplete: () => void;
 }
-
-import * as ExpoSplashScreen from 'expo-splash-screen';
 
 export function ProfessionalSplashScreen({ onAnimationComplete }: SplashScreenProps) {
     const scale = useSharedValue(1.2); // Start slightly larger for a "pop up" effect
@@ -55,7 +55,7 @@ export function ProfessionalSplashScreen({ onAnimationComplete }: SplashScreenPr
         }, 2500);
 
         return () => clearTimeout(timer);
-    }, []);
+    }, [onAnimationComplete, opacity, scale, textOpacity, textTranslateY]);
 
     const logoStyle = useAnimatedStyle(() => ({
         transform: [{ scale: scale.value }],
