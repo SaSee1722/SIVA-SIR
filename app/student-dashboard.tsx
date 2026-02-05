@@ -299,6 +299,13 @@ export default function StudentDashboardScreen() {
                 </View>
                 <View style={styles.headerActionButtons}>
                   <Pressable
+                    onPress={() => router.push('/recent-activity')}
+                    style={styles.actionIconCircle}
+                    hitSlop={8}
+                  >
+                    <MaterialIcons name="history" size={22} color={colors.common.white} />
+                  </Pressable>
+                  <Pressable
                     onPress={() => setShowEditModal(true)}
                     style={styles.actionIconCircle}
                     hitSlop={8}

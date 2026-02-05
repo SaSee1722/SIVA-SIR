@@ -1621,6 +1621,10 @@ export default function StaffDashboardScreen() {
               )}
             </Pressable>
 
+            <Pressable onPress={() => router.push('/recent-activity')} style={styles.headerIconBtn} hitSlop={8}>
+              <MaterialIcons name="history" size={24} color={colors.staff.text} />
+            </Pressable>
+
             <Pressable onPress={handleLogout} style={styles.headerIconBtn} hitSlop={8}>
               <MaterialIcons name="logout" size={24} color={colors.staff.text} />
             </Pressable>
