@@ -41,7 +41,6 @@ export default function StaffDashboardScreen() {
     getDateRangeRecords,
     refresh: refreshAttendance,
   } = useAttendance(user?.id);
-  const { unreadCount, refresh: refreshNotifications } = useNotifications(user?.id);
   const router = useRouter();
   const { showAlert } = useAlert();
   const { showToast } = useToast();
@@ -84,7 +83,6 @@ export default function StaffDashboardScreen() {
       refreshAttendance(),
       loadClasses(),
       loadAllStudents(),
-      refreshNotifications()
     ]);
     setRefreshing(false);
   };
@@ -1618,21 +1616,6 @@ export default function StaffDashboardScreen() {
                 <View style={styles.headerBadge}>
                   <Text style={styles.headerBadgeText}>
                     {allStudents.filter(s => !s.isApproved).length}
-                  </Text>
-                </View>
-              )}
-            </Pressable>
-
-            <Pressable
-              onPress={() => router.push('/notifications')}
-              style={styles.headerIconBtn}
-              hitSlop={8}
-            >
-              <MaterialIcons name="notifications" size={24} color={colors.staff.text} />
-              {unreadCount > 0 && (
-                <View style={styles.headerBadge}>
-                  <Text style={styles.headerBadgeText}>
-                    {unreadCount > 9 ? '9+' : unreadCount}
                   </Text>
                 </View>
               )}

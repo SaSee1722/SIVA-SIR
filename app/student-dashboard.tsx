@@ -28,7 +28,6 @@ export default function StudentDashboardScreen() {
   const studentProfile = user as StudentProfile;
   const { files, isLoading: filesLoading, uploadFile, deleteFile, refresh: refreshFiles } = useFiles(user?.id);
   const { records, sessions, isLoading: attendanceLoading, refresh: refreshAttendance } = useAttendance();
-  const { unreadCount, refresh: refreshNotifications } = useNotifications(user?.id);
   const router = useRouter();
   const { showAlert } = useAlert();
   const { showToast } = useToast();
@@ -62,7 +61,6 @@ export default function StudentDashboardScreen() {
       refreshUser(),
       refreshFiles(),
       refreshAttendance(),
-      refreshNotifications()
     ]);
     setRefreshing(false);
   };
@@ -82,14 +80,7 @@ export default function StudentDashboardScreen() {
     }
   }, [user?.id]);
 
-  // Refresh notifications when dashboard comes into focus
-  useFocusEffect(
-    useCallback(() => {
-      if (user?.id) {
-        refreshNotifications();
-      }
-    }, [user?.id, refreshNotifications])
-  );
+
 
   useEffect(() => {
     if (showEditModal) {
@@ -313,20 +304,6 @@ export default function StudentDashboardScreen() {
                     hitSlop={8}
                   >
                     <MaterialIcons name="edit" size={20} color={colors.common.white} />
-                  </Pressable>
-                  <Pressable
-                    onPress={() => router.push('/notifications')}
-                    style={styles.actionIconCircle}
-                    hitSlop={8}
-                  >
-                    <MaterialIcons name="notifications" size={22} color={colors.common.white} />
-                    {unreadCount > 0 && (
-                      <View style={styles.notifBadgeSmall}>
-                        <Text style={styles.notifBadgeTextSmall}>
-                          {unreadCount > 9 ? '!' : unreadCount}
-                        </Text>
-                      </View>
-                    )}
                   </Pressable>
                   <Pressable onPress={handleLogout} style={styles.actionIconCircle} hitSlop={8}>
                     <MaterialIcons name="power-settings-new" size={22} color={colors.common.white} />

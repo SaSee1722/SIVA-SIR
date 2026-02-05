@@ -19,18 +19,16 @@ Notifications.setNotificationCategoryAsync('session_created', [
 ]);
 
 Notifications.setNotificationHandler({
-    handleNotification: async (notification) => {
-        // Check if we should silence this notification
-        const data = notification.request.content.data;
-        
-        // We always silence native foreground alerts in favor of our custom premium Toasts
-        // as requested by the user to avoid "duplicates" (system bubble + app toast/ui)
+    handleNotification: async () => {
+        // We silence ALL native foreground alerts/banners to rely solely on the system 
+        // push notification or manual UI handling. This prevents the "double notification" 
+        // feeling (system bubble + app alert) while in use.
         return {
             shouldShowAlert: false,
-            shouldPlaySound: true,
-            shouldSetBadge: true,
+            shouldPlaySound: false,
+            shouldSetBadge: false,
             shouldShowBanner: false,
-            shouldShowList: true,
+            shouldShowList: false,
         };
     },
 });
