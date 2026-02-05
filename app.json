@@ -30,6 +30,10 @@
         "foregroundImage": "./assets/images/logo.png",
         "backgroundColor": "#ffffff"
       },
+      "notification": {
+        "icon": "./assets/images/notification-icon.png",
+        "color": "#7C3AED"
+      },
       "edgeToEdgeEnabled": true,
       "package": "com.ssabee1722.eduportalapp",
       "googleServicesFile": "./google-services.json",

@@ -299,6 +299,7 @@ export default function StaffDashboardScreen() {
               class: r.class,
               markedAt: r.marked_at,
               date: r.date,
+              status: r.status,
             }));
 
             // Fetch absentees for this session
